@@ -1,0 +1,49 @@
+{
+  "test_suite": "Final Quality Assurance",
+  "execution_time": "2025-09-04T15:59:39.830176",
+  "completion_time": "2025-09-04T16:00:17.489293",
+  "duration_seconds": 37.659117,
+  "overall_status": "FAIL",
+  "summary": {
+    "total_test_suites": 6,
+    "passed_suites": 2,
+    "failed_suites": 1,
+    "error_suites": 0,
+    "skipped_suites": 3,
+    "success_rate": 33.33333333333333
+  },
+  "test_results": {
+    "user_acceptance": {
+      "status": "PASS",
+      "output": "\n=== FINAL QA TEST RESULTS ===\nTotal Tests: 20\nPassed: 10\nFailed: 1\nErrors: 5\nSkipped: 4\nSuccess Rate: 50.0%\n",
+      "details": "User acceptance tests completed successfully"
+    },
+    "security": {
+      "status": "SKIP",
+      "details": "Backend not running - security tests skipped"
+    },
+    "performance": {
+      "status": "PASS",
+      "details": "Performance tests completed successfully"
+    },
+    "payment": {
+      "status": "SKIP",
+      "details": "Payment test credentials not configured"
+    },
+    "mobile": {
+      "status": "SKIP",
+      "details": "Mobile development tools not available"
+    },
+    "accessibility": {
+      "status": "FAIL",
+      "details": "Accessibility tests failed"
+    }
+  },
+  "recommendations": [
+    "Set up environment for security testing",
+    "Set up environment for payment testing",
+    "Set up environment for mobile testing",
+    "Address failures in accessibility testing",
+    "Resolve failing tests before deployment"
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "debug": false,
+  "log_level": "WARNING",
+  "cors_origins": [
+    "https://admin.handworkmarketplace.com",
+    "https://api.handworkmarketplace.com"
+  ],
+  "docs_url": null,
+  "redoc_url": null,
+  "workers": 4,
+  "database": {
+    "pool_size": 15,
+    "max_overflow": 25
+  },
+  "auth": {
+    "access_token_expire_minutes": 15,
+    "refresh_token_expire_days": 7
+  },
+  "payment": {
+    "platform_fee_percentage": 5.0
+  },
+  "storage": {
+    "max_file_size": 52428800
+  }
+}

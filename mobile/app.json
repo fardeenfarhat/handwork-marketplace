@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "Handwork Marketplace",
+    "slug": "handwork-marketplace-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "handwork-marketplace",
+    "splash": {
+      "backgroundColor": "#007AFF",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.handworkmarketplace.mobile"
+    },
+    "android": {
+      "package": "com.handworkmarketplace.mobile"
+    },
+    "web": {
+      "bundler": "webpack"
+    },
+    "plugins": [
+      [
+        "expo-notifications",
+        {
+          "color": "#007AFF",
+          "mode": "development"
+        }
+      ]
+    ],
+    "notification": {
+      "color": "#007AFF",
+      "androidMode": "default",
+      "androidCollapsedTitle": "Handwork Marketplace"
+    }
+  }
+}

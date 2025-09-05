@@ -1,0 +1,190 @@
+name: Mobile App Build and Deploy
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths: [ 'mobile/**' ]
+  pull_request:
+    branches: [ main, develop ]
+    paths: [ 'mobile/**' ]
+
+jobs:
+  # iOS Build
+  ios-build:
+    runs-on: macos-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: mobile/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: ./mobile
+      run: npm ci
+      
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.0'
+        bundler-cache: true
+        working-directory: mobile/ios
+        
+    - name: Install CocoaPods
+      working-directory: ./mobile/ios
+      run: |
+        bundle install
+        bundle exec pod install
+        
+    - name: Set up Xcode
+      uses: maxim-lobanov/setup-xcode@v1
+      with:
+        xcode-version: latest-stable
+        
+    - name: Build iOS app
+      working-directory: ./mobile
+      run: |
+        npx expo build:ios --type archive --non-interactive
+      env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        
+    - name: Upload to TestFlight (Production)
+      if: github.ref == 'refs/heads/main'
+      working-directory: ./mobile
+      run: |
+        npx expo upload:ios --latest --non-interactive
+      env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        EXPO_APPLE_ID: ${{ secrets.EXPO_APPLE_ID }}
+        EXPO_APPLE_ID_PASSWORD: ${{ secrets.EXPO_APPLE_ID_PASSWORD }}
+
+  # Android Build
+  android-build:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: mobile/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: ./mobile
+      run: npm ci
+      
+    - name: Set up JDK 11
+      uses: actions/setup-java@v3
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+        
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v2
+      
+    - name: Build Android app
+      working-directory: ./mobile
+      run: |
+        npx expo build:android --type app-bundle --non-interactive
+      env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        
+    - name: Upload to Google Play Console (Production)
+      if: github.ref == 'refs/heads/main'
+      working-directory: ./mobile
+      run: |
+        npx expo upload:android --latest --non-interactive
+      env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        EXPO_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.EXPO_ANDROID_KEYSTORE_PASSWORD }}
+        EXPO_ANDROID_KEY_PASSWORD: ${{ secrets.EXPO_ANDROID_KEY_PASSWORD }}
+
+  # EAS Build (Alternative approach using Expo Application Services)
+  eas-build:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: mobile/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: ./mobile
+      run: npm ci
+      
+    - name: Install EAS CLI
+      run: npm install -g @expo/eas-cli
+      
+    - name: Build for staging
+      if: github.ref == 'refs/heads/develop'
+      working-directory: ./mobile
+      run: |
+        eas build --platform all --profile staging --non-interactive
+      env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        
+    - name: Build for production
+      if: github.ref == 'refs/heads/main'
+      working-directory: ./mobile
+      run: |
+        eas build --platform all --profile production --non-interactive
+      env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        
+    - name: Submit to app stores
+      if: github.ref == 'refs/heads/main'
+      working-directory: ./mobile
+      run: |
+        eas submit --platform all --latest --non-interactive
+      env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+
+  # Over-the-Air Updates
+  ota-update:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        cache-dependency-path: mobile/package-lock.json
+        
+    - name: Install dependencies
+      working-directory: ./mobile
+      run: npm ci
+      
+    - name: Publish staging update
+      if: github.ref == 'refs/heads/develop'
+      working-directory: ./mobile
+      run: |
+        npx expo publish --release-channel staging --non-interactive
+      env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        
+    - name: Publish production update
+      if: github.ref == 'refs/heads/main'
+      working-directory: ./mobile
+      run: |
+        npx expo publish --release-channel production --non-interactive
+      env:
+        EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}

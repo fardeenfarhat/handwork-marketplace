@@ -14,6 +14,7 @@ if (__DEV__) {
   LogBox.ignoreLogs([
     'Non-serializable values were found in the navigation state',
     'AsyncStorage has been extracted from react-native',
+    'RN GoogleSignin native module is not correctly linked',
   ]);
 }
 

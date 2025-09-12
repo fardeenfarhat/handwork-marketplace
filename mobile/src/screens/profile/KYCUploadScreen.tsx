@@ -32,10 +32,9 @@ export default function KYCUploadScreen() {
     if (!user) return;
 
     try {
-      // In a real app, this would fetch the KYC status from the API
-      // For now, we'll use mock data
-      setKycStatus('pending');
-      setRejectionReason('');
+      const kycData = await apiService.getKYCStatus();
+      setKycStatus(kycData.status);
+      setRejectionReason(kycData.rejectionReason || '');
     } catch (error) {
       Alert.alert('Error', 'Failed to load KYC status');
     }
@@ -45,22 +44,19 @@ export default function KYCUploadScreen() {
     try {
       setIsLoading(true);
       
-      // In a real app, this would upload documents to the API
-      // const formData = new FormData();
-      // documents.forEach((doc, index) => {
-      //   formData.append(`document_${index}`, {
-      //     uri: doc.uri,
-      //     type: doc.mimeType,
-      //     name: doc.name,
-      //   } as any);
-      //   formData.append(`document_${index}_type`, doc.type);
-      // });
-      // await apiService.uploadKYCDocuments(formData);
+      const formData = new FormData();
+      documents.forEach((doc, index) => {
+        formData.append(`document_${index}`, {
+          uri: doc.uri,
+          type: doc.mimeType,
+          name: doc.name,
+        } as any);
+        formData.append(`document_${index}_type`, doc.type);
+      });
       
-      // For now, we'll just simulate the API call
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      const result = await apiService.uploadKYCDocuments(formData);
       
-      setKycStatus('pending');
+      setKycStatus(result.status);
       Alert.alert(
         'Documents Submitted',
         'Your documents have been submitted for review. You will be notified once the verification is complete.',

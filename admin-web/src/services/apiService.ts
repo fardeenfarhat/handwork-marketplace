@@ -1,11 +1,12 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import { API_CONFIG } from '../config/api';
 
 class ApiService {
   private api: AxiosInstance;
   private baseURL: string;
 
   constructor() {
-    this.baseURL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
+    this.baseURL = API_CONFIG.BASE_URL;
     this.api = axios.create({
       baseURL: this.baseURL,
       headers: {
@@ -36,11 +37,21 @@ class ApiService {
 
   // Auth endpoints
   async login(email: string, password: string) {
+    // Backend expects { email, password }
     const response = await this.api.post('/api/v1/auth/login', {
-      username: email,
+      email,
       password,
     });
-    return response.data;
+    const data = response.data;
+    // Normalize shape for AuthContext (expects access_token at top level)
+    return {
+      access_token: data?.token?.access_token,
+      refresh_token: data?.token?.refresh_token,
+      expires_in: data?.token?.expires_in,
+      token_type: data?.token?.token_type || 'bearer',
+      user: data?.user,
+      raw: data,
+    };
   }
 
   async getCurrentAdmin() {

@@ -9,10 +9,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootState } from '@/store';
+import { RootState, AppDispatch } from '@/store';
+import { logoutUser } from '@/store/slices/authSlice';
 import { WorkerProfile, ClientProfile, ProfileStackParamList } from '@/types';
 import { ProfileViewer, ProfileProgress } from '@/components/profile';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
@@ -22,6 +23,7 @@ type ProfileScreenNavigationProp = NativeStackNavigationProp<ProfileStackParamLi
 
 export default function ProfileScreen() {
   const navigation = useNavigation<ProfileScreenNavigationProp>();
+  const dispatch = useDispatch<AppDispatch>();
   const { user } = useSelector((state: RootState) => state.auth);
   const [profile, setProfile] = useState<WorkerProfile | ClientProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,35 +38,60 @@ export default function ProfileScreen() {
 
     try {
       setIsLoading(true);
-      // This would be replaced with actual API calls to get worker/client profile
-      // For now, we'll create a mock profile based on user role
+      
+      console.log('🔄 Loading profile for user:', user.role);
+      
       if (user.role === 'worker') {
-        const mockWorkerProfile: WorkerProfile = {
-          userId: user.id,
-          bio: '',
-          skills: [],
-          serviceCategories: [],
-          hourlyRate: 0,
-          location: '',
-          portfolioImages: [],
-          kycStatus: 'pending',
-          rating: 0,
-          totalJobs: 0,
-        };
-        setProfile(mockWorkerProfile);
+        try {
+          const workerProfile = await apiService.getWorkerProfile();
+          console.log('✅ Worker profile loaded:', workerProfile);
+          setProfile(workerProfile);
+        } catch (profileError) {
+          console.log('⚠️ Worker profile not found, creating default profile');
+          // Create a default worker profile if none exists
+          const defaultProfile: WorkerProfile = {
+            userId: user.id,
+            bio: '',
+            skills: [],
+            serviceCategories: [],
+            hourlyRate: 0,
+            location: '',
+            portfolioImages: [],
+            kycStatus: 'pending',
+            rating: 0,
+            totalJobs: 0,
+          };
+          setProfile(defaultProfile);
+        }
       } else {
-        const mockClientProfile: ClientProfile = {
-          userId: user.id,
-          companyName: '',
-          description: '',
-          location: '',
-          rating: 0,
-          totalJobsPosted: 0,
-        };
-        setProfile(mockClientProfile);
+        try {
+          const clientProfile = await apiService.getClientProfile();
+          console.log('✅ Client profile loaded:', clientProfile);
+          setProfile(clientProfile);
+        } catch (profileError) {
+          console.log('⚠️ Client profile not found, creating default profile');
+          // Create a default client profile if none exists
+          const defaultProfile: ClientProfile = {
+            userId: user.id,
+            companyName: '',
+            description: '',
+            location: '',
+            rating: 0,
+            totalJobsPosted: 0,
+          };
+          setProfile(defaultProfile);
+        }
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to load profile');
+      console.error('❌ Error loading profile:', error);
+      Alert.alert(
+        'Profile Error', 
+        'Unable to load profile. Please check your connection and try again.',
+        [
+          { text: 'Retry', onPress: loadProfile },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
     } finally {
       setIsLoading(false);
     }
@@ -100,6 +127,26 @@ export default function ProfileScreen() {
     }
   };
 
+  const handleLogout = () => {
+    Alert.alert(
+      'Logout',
+      'Are you sure you want to logout?',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Logout',
+          style: 'destructive',
+          onPress: () => {
+            dispatch(logoutUser());
+          },
+        },
+      ]
+    );
+  };
+
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -123,7 +170,12 @@ export default function ProfileScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Profile</Text>
+        <View style={styles.headerTop}>
+          <Text style={styles.title}>Profile</Text>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
+          </TouchableOpacity>
+        </View>
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[styles.tab, activeTab === 'view' && styles.activeTab]}
@@ -190,11 +242,19 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 16,
     color: '#333',
+  },
+  logoutButton: {
+    padding: 8,
   },
   tabContainer: {
     flexDirection: 'row',

@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { 
   ReviewCard, 
@@ -19,9 +20,11 @@ import {
   Review, 
   ReviewFilters as ReviewFiltersType, 
   RatingSummary as RatingSummaryType,
-  ReviewStackParamList 
+  ReviewStackParamList,
+  RootState
 } from '../../types';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
+import { apiService } from '../../services/api';
 
 type ReviewsListScreenRouteProp = RouteProp<ReviewStackParamList, 'ReviewsList'>;
 
@@ -30,6 +33,7 @@ export const ReviewsListScreen: React.FC = () => {
   const route = useRoute<ReviewsListScreenRouteProp>();
   const { userId } = route.params || {};
   const { handleError } = useErrorHandler();
+  const { user } = useSelector((state: RootState) => state.auth);
 
   const [reviews, setReviews] = useState<Review[]>([]);
   const [ratingSummary, setRatingSummary] = useState<RatingSummaryType | null>(null);
@@ -41,68 +45,7 @@ export const ReviewsListScreen: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
-  // Mock data - replace with actual API calls
-  const mockReviews: Review[] = [
-    {
-      id: 1,
-      bookingId: 1,
-      reviewerId: 2,
-      revieweeId: 1,
-      reviewerName: 'Sarah Johnson',
-      revieweeName: 'Mike Wilson',
-      jobTitle: 'Kitchen Plumbing Repair',
-      rating: 5,
-      comment: 'Excellent work! Mike was professional, punctual, and fixed the issue quickly. The kitchen sink is working perfectly now. Highly recommend!',
-      status: 'approved',
-      createdAt: '2024-01-15T10:30:00Z',
-      response: {
-        id: 1,
-        reviewId: 1,
-        responderId: 1,
-        responderName: 'Mike Wilson',
-        response: 'Thank you Sarah! It was a pleasure working on your kitchen. Glad I could help resolve the plumbing issue quickly.',
-        createdAt: '2024-01-15T14:20:00Z',
-      },
-    },
-    {
-      id: 2,
-      bookingId: 2,
-      reviewerId: 3,
-      revieweeId: 1,
-      reviewerName: 'David Chen',
-      revieweeName: 'Mike Wilson',
-      jobTitle: 'Bathroom Faucet Installation',
-      rating: 4,
-      comment: 'Good work overall. Mike installed the new faucet properly and cleaned up after himself. Only minor issue was he arrived 30 minutes late, but he called ahead to let me know.',
-      status: 'approved',
-      createdAt: '2024-01-10T16:45:00Z',
-    },
-    {
-      id: 3,
-      bookingId: 3,
-      reviewerId: 4,
-      revieweeId: 1,
-      reviewerName: 'Lisa Martinez',
-      revieweeName: 'Mike Wilson',
-      jobTitle: 'Toilet Repair',
-      rating: 5,
-      comment: 'Outstanding service! Mike diagnosed the problem immediately and had it fixed in no time. Very knowledgeable and fair pricing. Will definitely hire again.',
-      status: 'approved',
-      createdAt: '2024-01-08T09:15:00Z',
-    },
-  ];
 
-  const mockRatingSummary: RatingSummaryType = {
-    averageRating: 4.7,
-    totalReviews: 3,
-    ratingDistribution: {
-      5: 2,
-      4: 1,
-      3: 0,
-      2: 0,
-      1: 0,
-    },
-  };
 
   useEffect(() => {
     loadReviews();
@@ -112,34 +55,12 @@ export const ReviewsListScreen: React.FC = () => {
     try {
       setIsLoading(true);
       
-      // TODO: Replace with actual API call
       console.log('Loading reviews with filters:', filters);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      let filteredReviews = [...mockReviews];
-      
-      // Apply rating filter
-      if (filters.rating) {
-        filteredReviews = filteredReviews.filter(review => review.rating === filters.rating);
-      }
-      
-      // Apply sorting
-      if (filters.sortBy === 'date') {
-        filteredReviews.sort((a, b) => {
-          const dateA = new Date(a.createdAt).getTime();
-          const dateB = new Date(b.createdAt).getTime();
-          return filters.sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
-        });
-      } else if (filters.sortBy === 'rating') {
-        filteredReviews.sort((a, b) => {
-          return filters.sortOrder === 'desc' ? b.rating - a.rating : a.rating - b.rating;
-        });
-      }
-      
-      setReviews(filteredReviews);
-      setRatingSummary(mockRatingSummary);
+      // Call API service to get reviews
+      const reviewsData = await apiService.getReviews(userId, filters);
+      setReviews(reviewsData.reviews);
+      setRatingSummary(reviewsData.ratingSummary);
     } catch (error) {
       handleError(error);
     } finally {
@@ -155,8 +76,9 @@ export const ReviewsListScreen: React.FC = () => {
 
   const handleReportReview = async (reviewId: number, reason: string) => {
     try {
-      // TODO: Replace with actual API call
       console.log('Reporting review:', reviewId, reason);
+      
+      await apiService.reportReview(reviewId, reason);
       
       // Update local state
       setReviews(prev => prev.map(review => 
@@ -171,19 +93,11 @@ export const ReviewsListScreen: React.FC = () => {
 
   const handleRespondToReview = async (reviewId: number, response: string) => {
     try {
-      // TODO: Replace with actual API call
       console.log('Responding to review:', reviewId, response);
       
-      // Update local state
-      const newResponse = {
-        id: Date.now(),
-        reviewId,
-        responderId: 1, // Current user ID
-        responderName: 'Mike Wilson', // Current user name
-        response,
-        createdAt: new Date().toISOString(),
-      };
+      const newResponse = await apiService.respondToReview(reviewId, response);
       
+      // Update local state
       setReviews(prev => prev.map(review => 
         review.id === reviewId 
           ? { ...review, response: newResponse }
@@ -206,7 +120,7 @@ export const ReviewsListScreen: React.FC = () => {
       review={item}
       onReport={handleReportReview}
       onRespond={handleRespondToReview}
-      currentUserId={1} // TODO: Get from auth context
+      currentUserId={user?.id}
     />
   );
 

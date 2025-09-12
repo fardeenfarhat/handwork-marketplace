@@ -1,4 +1,5 @@
 import { Message } from '@/types';
+import { API_CONFIG } from '@/config/api';
 
 interface WebSocketMessage {
   type: 'message' | 'typing' | 'read_receipt' | 'user_status';
@@ -28,9 +29,11 @@ class WebSocketService {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
   private token: string | null = null;
+  private userId: number | null = null;
   private listeners: { [key: string]: Function[] } = {};
 
-  setToken(token: string | null) {
+  setAuth(userId: number | null, token: string | null) {
+    this.userId = userId;
     this.token = token;
   }
 
@@ -39,12 +42,17 @@ class WebSocketService {
       return;
     }
 
-    const wsUrl = __DEV__ 
-      ? 'ws://192.168.18.19:8000/ws' 
-      : 'wss://your-production-api.com/ws';
+    // Build WS URL from API base (supports http/https and dev/prod)
+    const rawBase = API_CONFIG.RAW_BASE; // e.g. http://192.168.1.34:8000
+    const isSecure = rawBase.startsWith('https');
+    const wsProto = isSecure ? 'wss' : 'ws';
+    const host = rawBase.replace(/^https?:\/\//, '');
+    const uid = this.userId ?? 0;
+    const token = this.token ? encodeURIComponent(this.token) : '';
+    const wsUrl = `${wsProto}://${host}/api/v1/ws?user_id=${uid}&token=${token}`;
 
     try {
-      this.ws = new WebSocket(`${wsUrl}?token=${this.token}`);
+  this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
         console.log('WebSocket connected');

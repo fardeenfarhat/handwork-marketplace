@@ -10,11 +10,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 
 import { AuthStackParamList } from '@/types';
-import { AppDispatch } from '@/store';
+import { AppDispatch, RootState } from '@/store';
 import { setEmailVerified } from '@/store/slices/authSlice';
 import { validateVerificationCode } from '@/utils/validation';
 import apiService from '@/services/api';
@@ -28,13 +28,18 @@ export default function EmailVerificationScreen() {
   const navigation = useNavigation<EmailVerificationScreenNavigationProp>();
   const route = useRoute<EmailVerificationScreenRouteProp>();
   const dispatch = useDispatch<AppDispatch>();
+  const { user } = useSelector((state: RootState) => state.auth);
   
-  const { email } = route.params;
+  // Get email from route params or user state
+  const email = route.params?.email || user?.email || '';
   
   console.log('📧 EMAIL VERIFICATION SCREEN: Component mounted');
   console.log('📧 Email from params:', email);
   
   const [code, setCode] = useState(['', '', '', '', '', '']);
+  const [fullToken, setFullToken] = useState('');
+  const [useFullToken, setUseFullToken] = useState(false);
+  const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [timer, setTimer] = useState(60);
@@ -55,6 +60,9 @@ export default function EmailVerificationScreen() {
 
   const handleCodeChange = (value: string, index: number) => {
     if (value.length > 1) return; // Prevent multiple characters
+    
+    // Clear any previous error
+    setError('');
     
     const newCode = [...code];
     newCode[index] = value;
@@ -78,15 +86,24 @@ export default function EmailVerificationScreen() {
   };
 
   const handleVerifyEmail = async (verificationCode?: string) => {
-    const codeToVerify = verificationCode || code.join('');
+    const codeToVerify = verificationCode || (useFullToken ? fullToken.trim() : code.join(''));
     
     console.log('📧 EMAIL VERIFICATION: handleVerifyEmail called');
     console.log('🔢 Code to verify:', codeToVerify);
+    console.log('🔄 Using full token mode:', useFullToken);
     
-    const validation = validateVerificationCode(codeToVerify);
-    if (!validation.isValid) {
-      console.log('❌ Code validation failed:', validation.errors);
-      Alert.alert('Invalid Code', validation.errors.code);
+    // Skip validation for full token mode
+    if (!useFullToken) {
+      const validation = validateVerificationCode(codeToVerify);
+      if (!validation.isValid) {
+        console.log('❌ Code validation failed:', validation.errors);
+        Alert.alert('Invalid Code', validation.errors.code);
+        return;
+      }
+    }
+
+    if (!codeToVerify) {
+      setError('Please enter a verification code');
       return;
     }
 
@@ -108,31 +125,44 @@ export default function EmailVerificationScreen() {
           {
             text: 'Continue',
             onPress: () => {
-              console.log('🧭 Navigating to Login screen...');
-              // Navigate to main app or onboarding
-              navigation.reset({
-                index: 0,
-                routes: [{ name: 'Login' }],
-              });
+              console.log('🧭 Email verified - AppNavigator will handle navigation to onboarding');
+              // AppNavigator will automatically navigate to onboarding based on auth state
             },
           },
         ]
       );
     } catch (error: any) {
       console.log('💥 Email verification failed:', error);
-      Alert.alert('Verification Failed', error.message || 'Invalid verification code. Please try again.');
+      const errorMessage = error.message || 'Invalid verification code. Please try again.';
+      setError(errorMessage);
+      
+      // Show alert for critical errors, but use inline error for validation issues
+      if (errorMessage.toLowerCase().includes('network') || errorMessage.toLowerCase().includes('server')) {
+        Alert.alert('Verification Failed', errorMessage);
+      }
+      
       // Clear the code on error
-      setCode(['', '', '', '', '', '']);
-      inputRefs.current[0]?.focus();
+      if (useFullToken) {
+        setFullToken('');
+      } else {
+        setCode(['', '', '', '', '', '']);
+        inputRefs.current[0]?.focus();
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleResendCode = async () => {
+    if (!email) {
+      Alert.alert('Error', 'Email address not found. Please go back and try again.');
+      return;
+    }
+    
     setIsResending(true);
     try {
-      await apiService.resendVerification('email');
+      const response = await apiService.resendVerification('email', email);
+      console.log('📧 RESEND RESPONSE:', JSON.stringify(response, null, 2));
       Alert.alert('Code Sent', 'A new verification code has been sent to your email.');
       setTimer(60);
       setCanResend(false);
@@ -156,7 +186,14 @@ export default function EmailVerificationScreen() {
         <View style={styles.header}>
           <TouchableOpacity
             style={styles.backButton}
-            onPress={() => navigation.goBack()}
+            onPress={() => {
+              if (navigation.canGoBack()) {
+                navigation.goBack();
+              } else {
+                // If can't go back, navigate to login
+                navigation.navigate('Login');
+              }
+            }}
           >
             <Ionicons name="arrow-back" size={24} color="#333" />
           </TouchableOpacity>
@@ -174,31 +211,73 @@ export default function EmailVerificationScreen() {
 
         {/* Code Input */}
         <View style={styles.codeContainer}>
-          <View style={styles.codeInputs}>
-            {code.map((digit, index) => (
+          {!useFullToken ? (
+            <>
+              <View style={styles.codeInputs}>
+                {code.map((digit, index) => (
+                  <TextInput
+                    key={index}
+                    ref={ref => inputRefs.current[index] = ref}
+                    style={[
+                      styles.codeInput,
+                      digit ? styles.codeInputFilled : null,
+                      error ? styles.codeInputError : null,
+                    ]}
+                    value={digit}
+                    onChangeText={(value) => handleCodeChange(value, index)}
+                    onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
+                    keyboardType="numeric"
+                    maxLength={1}
+                    selectTextOnFocus
+                    autoFocus={index === 0}
+                  />
+                ))}
+              </View>
+              
+              <TouchableOpacity
+                style={styles.switchModeButton}
+                onPress={() => setUseFullToken(true)}
+              >
+                <Text style={styles.switchModeText}>
+                  Having trouble? Paste full token instead
+                </Text>
+              </TouchableOpacity>
+            </>
+          ) : (
+            <>
               <TextInput
-                key={index}
-                ref={ref => inputRefs.current[index] = ref}
-                style={[
-                  styles.codeInput,
-                  digit && styles.codeInputFilled,
-                ]}
-                value={digit}
-                onChangeText={(value) => handleCodeChange(value, index)}
-                onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
-                keyboardType="numeric"
-                maxLength={1}
-                selectTextOnFocus
-                autoFocus={index === 0}
+                style={[styles.fullTokenInput, error ? styles.codeInputError : null]}
+                value={fullToken}
+                onChangeText={setFullToken}
+                placeholder="Paste your verification token here"
+                multiline
+                numberOfLines={3}
+                textAlignVertical="top"
               />
-            ))}
-          </View>
+              
+              <TouchableOpacity
+                style={styles.switchModeButton}
+                onPress={() => {
+                  setUseFullToken(false);
+                  setFullToken('');
+                }}
+              >
+                <Text style={styles.switchModeText}>
+                  Use 6-digit code instead
+                </Text>
+              </TouchableOpacity>
+            </>
+          )}
+          
+          {error ? (
+            <Text style={styles.errorText}>{error}</Text>
+          ) : null}
           
           <Button
             title="Verify Email"
             onPress={() => handleVerifyEmail()}
             loading={isLoading}
-            disabled={isLoading || code.some(digit => !digit)}
+            disabled={isLoading || (useFullToken ? !fullToken.trim() : code.some(digit => !digit))}
             style={styles.verifyButton}
           />
         </View>
@@ -229,6 +308,34 @@ export default function EmailVerificationScreen() {
           <Text style={styles.helpText}>
             Check your spam folder if you don't see the email
           </Text>
+          
+          {/* Development Skip Button */}
+          {__DEV__ && (
+            <TouchableOpacity
+              onPress={() => {
+                console.log('🔧 DEV: Skipping email verification...');
+                dispatch(setEmailVerified(true));
+                Alert.alert(
+                  'Email Verified (DEV)',
+                  'Email verification skipped for development!',
+                  [
+                    {
+                      text: 'Continue',
+                      onPress: () => {
+                        console.log('🧭 DEV Email verified - AppNavigator will handle navigation to onboarding');
+                        // AppNavigator will automatically navigate to onboarding based on auth state
+                      },
+                    },
+                  ]
+                );
+              }}
+              style={styles.devSkipButton}
+            >
+              <Text style={styles.devSkipText}>
+                [DEV] Skip Verification
+              </Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -313,6 +420,17 @@ const styles = StyleSheet.create({
     borderColor: '#007AFF',
     backgroundColor: '#F0F8FF',
   },
+  codeInputError: {
+    borderColor: '#FF3B30',
+    backgroundColor: '#FFF5F5',
+  },
+  errorText: {
+    color: '#FF3B30',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 16,
+  },
   verifyButton: {
     marginTop: 8,
   },
@@ -344,5 +462,36 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#8E8E93',
     textAlign: 'center',
+  },
+  devSkipButton: {
+    marginTop: 20,
+    padding: 12,
+    backgroundColor: '#FF3B30',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  devSkipText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  switchModeButton: {
+    marginVertical: 16,
+    alignItems: 'center',
+  },
+  switchModeText: {
+    fontSize: 14,
+    color: '#007AFF',
+    textDecorationLine: 'underline',
+  },
+  fullTokenInput: {
+    borderWidth: 2,
+    borderColor: '#E5E5EA',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 14,
+    color: '#333',
+    minHeight: 80,
+    marginBottom: 16,
   },
 });

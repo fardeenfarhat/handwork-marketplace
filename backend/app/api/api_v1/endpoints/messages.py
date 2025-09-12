@@ -274,6 +274,23 @@ async def get_conversation_participants(
         logger.error(f"Error getting conversation participants: {e}")
         raise HTTPException(status_code=500, detail="Failed to get participants")
 
+@router.get("/unread-count")
+async def get_unread_message_count(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get count of unread messages for the current user"""
+    
+    messaging_service = MessagingService(db)
+    
+    try:
+        count = messaging_service.get_unread_message_count(current_user.id)
+        return {"unread_count": count}
+        
+    except Exception as e:
+        logger.error(f"Error getting unread message count: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get unread message count")
+
 @router.get("/online-users")
 async def get_online_users(
     current_user: User = Depends(get_current_user)

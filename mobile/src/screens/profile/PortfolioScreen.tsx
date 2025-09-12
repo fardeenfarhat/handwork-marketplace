@@ -30,9 +30,8 @@ export default function PortfolioScreen() {
     if (!user) return;
 
     try {
-      // In a real app, this would fetch the portfolio images from the API
-      // For now, we'll use mock data
-      setImages([]);
+      const portfolioData = await apiService.getPortfolio();
+      setImages(portfolioData.images || []);
     } catch (error) {
       Alert.alert('Error', 'Failed to load portfolio');
     }
@@ -42,19 +41,16 @@ export default function PortfolioScreen() {
     try {
       setIsLoading(true);
       
-      // In a real app, this would upload images to the API
-      // const formData = new FormData();
-      // portfolioImages.forEach((image, index) => {
-      //   formData.append(`image_${index}`, {
-      //     uri: image.uri,
-      //     type: 'image/jpeg',
-      //     name: image.name,
-      //   } as any);
-      // });
-      // await apiService.updatePortfolio(formData);
+      const formData = new FormData();
+      portfolioImages.forEach((image, index) => {
+        formData.append(`image_${index}`, {
+          uri: image.uri,
+          type: 'image/jpeg',
+          name: image.name,
+        } as any);
+      });
       
-      // For now, we'll just simulate the API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      await apiService.updatePortfolio(formData);
       
       Alert.alert('Success', 'Portfolio updated successfully');
     } catch (error) {

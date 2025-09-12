@@ -9,10 +9,12 @@ import {
   Alert,
 } from 'react-native';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
+import { useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 import { ReviewCard } from '../../components/reviews';
-import { Review, ReviewStackParamList } from '../../types';
+import { Review, ReviewStackParamList, RootState } from '../../types';
 import { useErrorHandler } from '../../hooks/useErrorHandler';
+import { apiService } from '../../services/api';
 
 type ReviewDetailScreenRouteProp = RouteProp<ReviewStackParamList, 'ReviewDetail'>;
 
@@ -21,33 +23,12 @@ export const ReviewDetailScreen: React.FC = () => {
   const route = useRoute<ReviewDetailScreenRouteProp>();
   const { reviewId } = route.params;
   const { handleError } = useErrorHandler();
+  const { user } = useSelector((state: RootState) => state.auth);
 
   const [review, setReview] = useState<Review | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Mock data - replace with actual API call
-  const mockReview: Review = {
-    id: reviewId,
-    bookingId: 1,
-    reviewerId: 2,
-    revieweeId: 1,
-    reviewerName: 'Sarah Johnson',
-    revieweeName: 'Mike Wilson',
-    jobTitle: 'Kitchen Plumbing Repair',
-    rating: 5,
-    comment: 'Excellent work! Mike was professional, punctual, and fixed the issue quickly. The kitchen sink is working perfectly now. I was impressed with his attention to detail and how he explained what he was doing throughout the process. He also cleaned up thoroughly after completing the work. The pricing was fair and transparent. I would definitely hire Mike again for any future plumbing needs and will recommend him to friends and family.',
-    status: 'approved',
-    createdAt: '2024-01-15T10:30:00Z',
-    updatedAt: '2024-01-15T10:35:00Z',
-    response: {
-      id: 1,
-      reviewId: reviewId,
-      responderId: 1,
-      responderName: 'Mike Wilson',
-      response: 'Thank you so much for the wonderful review, Sarah! It was truly a pleasure working on your kitchen plumbing. I always strive to provide clear communication about the work being done and ensure everything is left clean and tidy. Your kitchen sink should serve you well for years to come. Please don\'t hesitate to reach out if you need any plumbing services in the future!',
-      createdAt: '2024-01-15T14:20:00Z',
-    },
-  };
+
 
   useEffect(() => {
     loadReview();
@@ -57,13 +38,10 @@ export const ReviewDetailScreen: React.FC = () => {
     try {
       setIsLoading(true);
       
-      // TODO: Replace with actual API call
       console.log('Loading review:', reviewId);
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setReview(mockReview);
+      const reviewData = await apiService.getReview(reviewId);
+      setReview(reviewData);
     } catch (error) {
       handleError(error);
     } finally {
@@ -73,8 +51,9 @@ export const ReviewDetailScreen: React.FC = () => {
 
   const handleReportReview = async (reviewId: number, reason: string) => {
     try {
-      // TODO: Replace with actual API call
       console.log('Reporting review:', reviewId, reason);
+      
+      await apiService.reportReview(reviewId, reason);
       
       if (review) {
         setReview({
@@ -90,17 +69,9 @@ export const ReviewDetailScreen: React.FC = () => {
 
   const handleRespondToReview = async (reviewId: number, response: string) => {
     try {
-      // TODO: Replace with actual API call
       console.log('Responding to review:', reviewId, response);
       
-      const newResponse = {
-        id: Date.now(),
-        reviewId,
-        responderId: 1, // Current user ID
-        responderName: 'Mike Wilson', // Current user name
-        response,
-        createdAt: new Date().toISOString(),
-      };
+      const newResponse = await apiService.respondToReview(reviewId, response);
       
       if (review) {
         setReview({
@@ -127,8 +98,9 @@ export const ReviewDetailScreen: React.FC = () => {
           style: 'destructive',
           onPress: async () => {
             try {
-              // TODO: Replace with actual API call
               console.log('Deleting review:', reviewId);
+              
+              await apiService.deleteReview(reviewId);
               
               Alert.alert(
                 'Review Deleted',
@@ -150,8 +122,7 @@ export const ReviewDetailScreen: React.FC = () => {
   };
 
   const handleEditReview = () => {
-    // TODO: Navigate to edit review screen
-    Alert.alert('Edit Review', 'Edit functionality will be implemented in a future update.');
+    navigation.navigate('EditReview', { reviewId });
   };
 
   if (isLoading) {
@@ -181,7 +152,7 @@ export const ReviewDetailScreen: React.FC = () => {
     );
   }
 
-  const isReviewOwner = review.reviewerId === 1; // TODO: Get current user ID from auth context
+  const isReviewOwner = review.reviewerId === user?.id;
 
   return (
     <View style={styles.container}>
@@ -229,7 +200,7 @@ export const ReviewDetailScreen: React.FC = () => {
             review={review}
             onReport={handleReportReview}
             onRespond={handleRespondToReview}
-            currentUserId={1} // TODO: Get from auth context
+            currentUserId={user?.id}
           />
         </View>
 

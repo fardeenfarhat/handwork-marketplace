@@ -18,8 +18,18 @@ class Settings(BaseSettings):
     VERIFICATION_TOKEN_EXPIRE_HOURS: int = 24
     PASSWORD_RESET_TOKEN_EXPIRE_HOURS: int = 1
     
-    # CORS
-    ALLOWED_HOSTS: List[str] = ["*"]
+    # CORS - Allow all origins for development, specific origins for production
+    ALLOWED_HOSTS: List[str] = [
+        "http://localhost:3000",  # Admin web
+        "http://127.0.0.1:3000",  # Admin web alternative
+        "http://localhost:8081",  # Expo dev server
+        "http://127.0.0.1:8081",  # Expo dev server alternative
+        "http://localhost:19006", # Expo web
+        "http://127.0.0.1:19006", # Expo web alternative
+        "exp://localhost:19000",  # Expo mobile
+        "exp://127.0.0.1:19000",  # Expo mobile alternative
+        "*"  # Allow all for development - remove in production
+    ]
     
     # External Services
     STRIPE_SECRET_KEY: str = config("STRIPE_SECRET_KEY", default="")

@@ -12,13 +12,13 @@ type MessagesScreenNavigationProp = StackNavigationProp<MessagesStackParamList, 
 export default function MessagesScreen() {
   const navigation = useNavigation<MessagesScreenNavigationProp>();
 
-  const handleConversationPress = (jobId: number) => {
+  const handleConversationPress = (conversation: any) => {
     // Navigate to individual chat screen
     navigation.navigate('Chat', { 
-      jobId,
-      jobTitle: `Job #${jobId}`,
-      otherUserName: 'User Name', // This should come from actual data
-      otherUserId: 1, // This should come from actual data
+      jobId: conversation.jobId,
+      jobTitle: conversation.jobTitle,
+      otherUserName: conversation.otherUserName,
+      otherUserId: conversation.otherUserId,
     });
   };
 

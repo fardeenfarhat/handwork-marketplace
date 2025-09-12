@@ -8,6 +8,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -24,7 +25,10 @@ import AuthLoadingSpinner from '@/components/common/AuthLoadingSpinner';
 import ErrorDisplay from '@/components/common/ErrorDisplay';
 import SocialLogin from '@/components/auth/SocialLogin';
 
-type LoginScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Login'>;
+type LoginScreenNavigationProp = NativeStackNavigationProp<
+  AuthStackParamList,
+  'Login'
+>;
 
 export default function LoginScreen() {
   const navigation = useNavigation<LoginScreenNavigationProp>();
@@ -38,27 +42,34 @@ export default function LoginScreen() {
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const handleInputChange = (field: keyof LoginCredentials, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     // Clear field error when user starts typing
     if (formErrors[field]) {
-      setFormErrors(prev => ({ ...prev, [field]: '' }));
+      setFormErrors((prev) => ({ ...prev, [field]: '' }));
     }
   };
 
   const handleLogin = async () => {
     const validation = validateLoginForm(formData.email, formData.password);
-    
+
     if (!validation.isValid) {
       setFormErrors(validation.errors);
       return;
     }
 
     setFormErrors({});
-    
+
     try {
       await loginWithRetry(formData);
+
+      // Store remember me preference
+      if (rememberMe) {
+        const { secureStorage } = await import('@/services/storage');
+        await secureStorage.setItem('remember_me', 'true');
+      }
     } catch (error) {
       // Error is already handled by useAuthWithRetry hook
       console.log('Login failed:', error);
@@ -108,6 +119,25 @@ export default function LoginScreen() {
           <View style={styles.header}>
             <Text style={styles.title}>Welcome Back</Text>
             <Text style={styles.subtitle}>Sign in to your account</Text>
+
+            {/* Development Clear Storage Button */}
+            {__DEV__ && (
+              <TouchableOpacity
+                onPress={async () => {
+                  console.log('🔧 DEV: Clearing stored auth...');
+                  const { secureStorage } = await import('@/services/storage');
+                  await secureStorage.removeItem('access_token');
+                  await secureStorage.removeItem('refresh_token');
+                  dispatch(clearError());
+                  console.log('✅ DEV: Storage cleared - app will reset');
+                }}
+                style={styles.devClearButton}
+              >
+                <Text style={styles.devClearText}>
+                  [DEV] Clear Storage & Start Fresh
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Error Display */}
@@ -144,12 +174,26 @@ export default function LoginScreen() {
               leftIcon="lock-closed"
             />
 
-            <TouchableOpacity
-              style={styles.forgotPassword}
-              onPress={navigateToForgotPassword}
-            >
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-            </TouchableOpacity>
+            <View style={styles.optionsRow}>
+              <TouchableOpacity
+                style={styles.rememberMeContainer}
+                onPress={() => setRememberMe(!rememberMe)}
+              >
+                <Ionicons
+                  name={rememberMe ? 'checkbox' : 'square-outline'}
+                  size={20}
+                  color={rememberMe ? '#007AFF' : '#8E8E93'}
+                />
+                <Text style={styles.rememberMeText}>Remember me</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.forgotPassword}
+                onPress={navigateToForgotPassword}
+              >
+                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              </TouchableOpacity>
+            </View>
 
             <Button
               title="Sign In"
@@ -219,9 +263,23 @@ const styles = StyleSheet.create({
   form: {
     marginBottom: 32,
   },
-  forgotPassword: {
-    alignSelf: 'flex-end',
+  optionsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 24,
+  },
+  rememberMeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  rememberMeText: {
+    fontSize: 14,
+    color: '#333',
+    marginLeft: 8,
+  },
+  forgotPassword: {
+    // alignSelf: 'flex-end', // removed since it's now in a row
   },
   forgotPasswordText: {
     fontSize: 14,
@@ -261,5 +319,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#007AFF',
     fontWeight: '600',
+  },
+  devClearButton: {
+    marginTop: 16,
+    padding: 8,
+    backgroundColor: '#FF3B30',
+    borderRadius: 8,
+  },
+  devClearText: {
+    color: '#fff',
+    fontSize: 12,
+    textAlign: 'center',
   },
 });

@@ -10,11 +10,11 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
 
 import { AuthStackParamList } from '@/types';
-import { AppDispatch } from '@/store';
+import { AppDispatch, RootState } from '@/store';
 import { setOnboardingCompleted } from '@/store/slices/authSlice';
 import Button from '@/components/common/Button';
 
@@ -97,11 +97,15 @@ export default function OnboardingScreen() {
   const navigation = useNavigation<OnboardingScreenNavigationProp>();
   const route = useRoute<OnboardingScreenRouteProp>();
   const dispatch = useDispatch<AppDispatch>();
+  const { user } = useSelector((state: RootState) => state.auth);
   
-  const { role } = route.params;
+  // Get role from route params or user state
+  const role = route.params?.role || user?.role || 'client';
   
   console.log('🎯 ONBOARDING SCREEN: Component mounted');
-  console.log('🎭 Role from params:', role);
+  console.log('🎭 Role from params:', route.params?.role);
+  console.log('👤 Role from user:', user?.role);
+  console.log('🎯 Final role:', role);
   const [currentStep, setCurrentStep] = useState(0);
   
   const steps = role === 'client' ? clientSteps : workerSteps;
@@ -126,12 +130,10 @@ export default function OnboardingScreen() {
   };
 
   const handleComplete = () => {
+    console.log('🎯 ONBOARDING: Completing onboarding...');
     dispatch(setOnboardingCompleted(true));
-    // Navigate to main app
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'Login' }],
-    });
+    console.log('✅ ONBOARDING: Onboarding completed - AppNavigator will handle navigation to main app');
+    // AppNavigator will automatically navigate to main app based on auth state
   };
 
   const currentStepData = steps[currentStep];

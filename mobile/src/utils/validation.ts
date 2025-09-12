@@ -241,12 +241,19 @@ export const validateJobForm = (data: {
   }
   
   // Preferred date validation
-  const preferredDate = new Date(data.preferredDate);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  if (preferredDate < today) {
-    errors.preferredDate = 'Preferred date cannot be in the past';
+  if (!data.preferredDate) {
+    errors.preferredDate = 'Preferred date is required';
+  } else {
+    const preferredDate = new Date(data.preferredDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // Check if date is valid
+    if (isNaN(preferredDate.getTime())) {
+      errors.preferredDate = 'Please select a valid date';
+    } else if (preferredDate < today) {
+      errors.preferredDate = 'Preferred date cannot be in the past';
+    }
   }
   
   return errors;

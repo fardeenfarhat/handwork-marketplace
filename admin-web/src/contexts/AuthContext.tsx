@@ -62,12 +62,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (email: string, password: string) => {
     try {
-      const response = await apiService.login(email, password);
-      const { access_token, user: userData } = response;
-      
-      localStorage.setItem('admin_token', access_token);
-      apiService.setAuthToken(access_token);
-      setUser(userData);
+      const result = await apiService.login(email, password);
+      if (!result?.access_token) {
+        throw new Error('Invalid auth response from server');
+      }
+      localStorage.setItem('admin_token', result.access_token);
+      apiService.setAuthToken(result.access_token);
+      setUser(result.user);
     } catch (error) {
       throw error;
     }

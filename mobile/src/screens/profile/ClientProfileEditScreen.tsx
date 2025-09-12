@@ -25,18 +25,10 @@ export default function ClientProfileEditScreen() {
 
     try {
       setIsLoading(true);
-      // In a real app, this would fetch the client profile from the API
-      // For now, we'll use mock data
-      const mockProfile: Partial<ClientProfile> = {
-        userId: user.id,
-        companyName: '',
-        description: '',
-        location: '',
-        rating: 0,
-        totalJobsPosted: 0,
-      };
-      setProfile(mockProfile);
+      const clientProfile = await apiService.getClientProfile();
+      setProfile(clientProfile);
     } catch (error) {
+      console.error('Error loading client profile:', error);
       Alert.alert('Error', 'Failed to load profile');
     } finally {
       setIsLoading(false);
@@ -47,15 +39,13 @@ export default function ClientProfileEditScreen() {
     try {
       setIsLoading(true);
       
-      // In a real app, this would call the API to update the client profile
-      // await apiService.updateClientProfile(profileData);
+      console.log('Saving client profile:', profileData);
+      const updatedProfile = await apiService.updateClientProfile(profileData);
       
-      // For now, we'll just simulate the API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setProfile(prev => ({ ...prev, ...profileData }));
+      setProfile(updatedProfile);
       Alert.alert('Success', 'Profile updated successfully');
     } catch (error) {
+      console.error('Error updating client profile:', error);
       Alert.alert('Error', 'Failed to update profile');
       throw error;
     } finally {

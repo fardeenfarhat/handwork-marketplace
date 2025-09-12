@@ -277,15 +277,22 @@ async def login_user(
 ):
     """Login user with email and password with optimized performance"""
     
+    print("🔐 [LOGIN] Endpoint hit")
+    try:
+        print(f"🔐 [LOGIN] Raw credentials object: {user_credentials}")
+    except Exception:
+        pass
     start_time = time.time()
     user_id = None
     
     try:
+        print("🔐 [LOGIN] About to query user")
         logger.info(f"Login attempt for email: {user_credentials.email}")
         
         # Optimized database query with performance monitoring
         query_start = time.time()
         user = get_user_for_authentication(db, user_credentials.email)
+        print("🔐 [LOGIN] Query returned user?", bool(user))
         query_duration = time.time() - query_start
         
         if query_duration > 1.0:  # Log slow queries
@@ -332,6 +339,7 @@ async def login_user(
         # Verify password
         password_start = time.time()
         if not verify_password(user_credentials.password, user.password_hash):
+            print("🔐 [LOGIN] Password verification failed")
             password_duration = time.time() - password_start
             log_login_attempt(
                 user_id=user_id,
@@ -358,6 +366,7 @@ async def login_user(
         token_start = time.time()
         access_token = create_access_token(subject=user.id)
         refresh_token = create_refresh_token(subject=user.id)
+        print("🔐 [LOGIN] Tokens generated")
         token_duration = time.time() - token_start
         
         if token_duration > 0.2:  # Log slow token generation
@@ -405,6 +414,7 @@ async def login_user(
         # Re-raise HTTP exceptions (authentication failures)
         raise
     except Exception as e:
+        print(f"💥 [LOGIN] Unexpected error: {e}")
         # Log unexpected errors
         total_duration = time.time() - start_time
         log_login_attempt(
@@ -423,6 +433,17 @@ async def login_user(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error during login"
         )
+
+# TEMP simple endpoint for debugging (bypasses timeout decorator & heavy logging)
+@router.post("/login2")
+async def debug_login(email: str, password: str, db: Session = Depends(get_db)):
+    """Simplified login to debug hanging issue."""
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid creds")
+    if not verify_password(password, user.password_hash):
+        raise HTTPException(status_code=401, detail="Invalid creds")
+    return {"ok": True, "user_id": user.id}
 
 @router.post("/oauth/login", response_model=AuthResponse)
 async def oauth_login(

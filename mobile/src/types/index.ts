@@ -376,10 +376,10 @@ export type AuthStackParamList = {
   Register: undefined;
   ForgotPassword: undefined;
   ResetPassword: { token: string };
-  EmailVerification: { email: string };
+  EmailVerification: { email?: string };
   PhoneVerification: { phone: string };
   RoleSelection: undefined;
-  Onboarding: { role: 'client' | 'worker' };
+  Onboarding: { role?: 'client' | 'worker' };
 };
 
 export type MainTabParamList = {
@@ -434,3 +434,11 @@ export type ReviewStackParamList = {
   ReviewDetail: { reviewId: number };
   ReviewModeration: { reviewId: number };
 };
+
+// Navigation prop types
+import { NavigationProp } from '@react-navigation/native';
+
+export type MainTabNavigationProp = NavigationProp<MainTabParamList>;
+export type JobsStackNavigationProp = NavigationProp<JobsStackParamList>;
+export type ProfileStackNavigationProp = NavigationProp<ProfileStackParamList>;
+export type PaymentStackNavigationProp = NavigationProp<PaymentStackParamList>;

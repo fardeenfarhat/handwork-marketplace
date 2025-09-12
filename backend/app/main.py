@@ -74,13 +74,11 @@ app = FastAPI(
 async def security_and_performance_middleware(request: Request, call_next):
     start_time = time.time()
     
-    # Apply rate limiting first
-    rate_limited_response = await rate_limit_middleware(request, call_next)
-    if rate_limited_response.status_code == 429:
-        return rate_limited_response
-    
-    # Continue with normal processing
-    response = await call_next(request)
+    # Route the request through the rate limiting middleware, which will
+    # either short-circuit with a 429 or forward to the next handler exactly once.
+    # IMPORTANT: Do NOT call call_next twice, as that will execute endpoints twice
+    # and can cause hangs/duplicate side effects.
+    response = await rate_limit_middleware(request, call_next)
     
     process_time = time.time() - start_time
     performance_monitor.record_request(process_time, response.status_code)

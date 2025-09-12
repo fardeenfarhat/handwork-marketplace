@@ -66,6 +66,11 @@ export async function withRetry<T>(
 }
 
 function defaultShouldRetry(error: any): boolean {
+  // In development, don't retry 404 errors (endpoint not implemented yet)
+  if (__DEV__ && error?.message?.includes('HTTP 404')) {
+    return false;
+  }
+  
   // Retry on network errors, timeouts, and 5xx server errors
   if (error?.name === 'AbortError') {
     return true; // Timeout

@@ -141,6 +141,7 @@ export const logoutUser = createAsyncThunk(
   async () => {
     await secureStorage.removeItem('access_token');
     await secureStorage.removeItem('refresh_token');
+    await secureStorage.removeItem('remember_me');
     apiService.setToken(null);
     
     // Sign out from OAuth providers
@@ -211,6 +212,8 @@ const authSlice = createSlice({
         state.refreshToken = action.payload.refresh_token || null;
         state.isAuthenticated = true;
         state.isEmailVerified = action.payload.user.isVerified;
+        // For existing users logging in, assume onboarding is completed
+        state.onboardingCompleted = action.payload.user.isVerified;
         state.error = null;
         state.retryCount = 0;
         state.isRetrying = false;

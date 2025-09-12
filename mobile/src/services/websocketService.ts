@@ -1,4 +1,5 @@
 import { WebSocketMessage, TypingIndicator, ReadReceipt, Message } from '../types';
+import { API_CONFIG } from '@/config/api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface WebSocketConfig {
@@ -7,6 +8,9 @@ interface WebSocketConfig {
   maxReconnectAttempts: number;
   heartbeatInterval: number;
 }
+
+// Extend or redefine WebSocketMessage locally to include 'ping'
+export type LocalWebSocketMessage = WebSocketMessage | { type: 'ping'; data: any; timestamp?: string };
 
 class WebSocketService {
   private ws: WebSocket | null = null;
@@ -20,8 +24,12 @@ class WebSocketService {
   private listeners: Map<string, Set<(data: any) => void>> = new Map();
 
   constructor(config: Partial<WebSocketConfig> = {}) {
+    const rawBase = API_CONFIG.RAW_BASE;
+    const isSecure = rawBase.startsWith('https');
+    const wsProto = isSecure ? 'wss' : 'ws';
+    const host = rawBase.replace(/^https?:\/\//, '');
     this.config = {
-      url: 'ws://192.168.18.19:8000/ws',
+      url: `${wsProto}://${host}/api/v1/ws`,
       reconnectInterval: 3000,
       maxReconnectAttempts: 5,
       heartbeatInterval: 30000,
@@ -37,7 +45,7 @@ class WebSocketService {
     this.isConnecting = true;
 
     try {
-      const wsUrl = `${this.config.url}?user_id=${userId}&token=${token}`;
+  const wsUrl = `${this.config.url}?user_id=${userId}&token=${encodeURIComponent(token)}`;
       this.ws = new WebSocket(wsUrl);
 
       this.ws.onopen = () => {
@@ -121,7 +129,7 @@ class WebSocketService {
           type: 'ping',
           data: {},
           timestamp: new Date().toISOString(),
-        });
+        } as unknown as WebSocketMessage);
       }
     }, this.config.heartbeatInterval);
   }

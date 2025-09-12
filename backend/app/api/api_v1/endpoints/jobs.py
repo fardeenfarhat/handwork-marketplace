@@ -464,3 +464,103 @@ async def get_my_applications(
         applications=application_responses,
         total=len(application_responses)
     )
+
+
+# Client-specific endpoints
+@router.get("/client/posted", response_model=JobListResponse)
+async def get_client_posted_jobs(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all jobs posted by the current client"""
+    client_profile = get_client_profile(current_user, db)
+    
+    # Get jobs posted by this client
+    jobs = db.query(Job).filter(
+        Job.client_id == client_profile.id
+    ).offset((page - 1) * limit).limit(limit).all()
+    
+    total = db.query(Job).filter(Job.client_id == client_profile.id).count()
+    
+    # Convert to response format
+    job_responses = []
+    for job in jobs:
+        # Count applications
+        application_count = len(job.applications) if hasattr(job, 'applications') else 0
+        
+        job_response = JobResponse(
+            id=job.id,
+            client_id=job.client_id,
+            title=job.title,
+            description=job.description,
+            category=job.category,
+            budget_min=job.budget_min,
+            budget_max=job.budget_max,
+            location=job.location,
+            preferred_date=job.preferred_date,
+            status=job.status,
+            requirements=job.requirements,
+            created_at=job.created_at,
+            updated_at=job.updated_at,
+            application_count=application_count,
+            client_name=f"{current_user.first_name} {current_user.last_name}",
+            client_rating=client_profile.rating
+        )
+        job_responses.append(job_response)
+    
+    has_next = (page * limit) < total
+    
+    return JobListResponse(
+        jobs=job_responses,
+        total=total,
+        page=page,
+        limit=limit,
+        has_next=has_next
+    )
+
+
+@router.get("/client/applications", response_model=JobApplicationListResponse)
+async def get_client_applications(
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all applications received by the current client"""
+    from app.db.models import JobApplication
+    
+    client_profile = get_client_profile(current_user, db)
+    
+    # Get all applications for jobs posted by this client
+    applications = db.query(JobApplication).join(Job).filter(
+        Job.client_id == client_profile.id
+    ).offset((page - 1) * limit).limit(limit).all()
+    
+    total = db.query(JobApplication).join(Job).filter(
+        Job.client_id == client_profile.id
+    ).count()
+    
+    # Convert to response format
+    application_responses = []
+    for app in applications:
+        response = JobApplicationResponse(
+            id=app.id,
+            job_id=app.job_id,
+            worker_id=app.worker_id,
+            message=app.message,
+            proposed_rate=app.proposed_rate,
+            proposed_start_date=app.proposed_start_date,
+            status=app.status,
+            created_at=app.created_at,
+            worker_name=f"{app.worker.user.first_name} {app.worker.user.last_name}" if app.worker else None,
+            worker_rating=app.worker.rating if app.worker else None,
+            worker_skills=app.worker.skills if app.worker else None
+        )
+        application_responses.append(response)
+    
+    return JobApplicationListResponse(
+        applications=application_responses,
+        total=total
+    )

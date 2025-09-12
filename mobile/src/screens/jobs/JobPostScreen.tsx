@@ -13,16 +13,20 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@/types/navigation';
-import { MockDateTimePicker as DateTimePicker } from '@/components/common/MockDateTimePicker';
-import { MockIcon as Icon } from '@/components/common/MockIcon';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Ionicons as Icon } from '@expo/vector-icons';
 import { AddressAutocomplete } from '@/components/common/AddressAutocomplete';
 
 import { JobFormData, JobsStackParamList } from '@/types';
 import { apiService } from '@/services/api';
 import { ErrorHandler } from '@/utils/errorHandler';
 import { validateJobForm } from '@/utils/validation';
+import { formatDate } from '@/utils/helpers';
 
-type JobPostScreenNavigationProp = StackNavigationProp<JobsStackParamList, 'JobPost'>;
+type JobPostScreenNavigationProp = StackNavigationProp<
+  JobsStackParamList,
+  'JobPost'
+>;
 
 const JOB_CATEGORIES = [
   'construction',
@@ -48,7 +52,7 @@ function JobPostScreen() {
     budgetMin: 0,
     budgetMax: 0,
     location: '',
-    preferredDate: new Date().toISOString(),
+    preferredDate: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // Default to tomorrow
     requirements: [],
   });
 
@@ -58,29 +62,37 @@ function JobPostScreen() {
   const [newRequirement, setNewRequirement] = useState('');
 
   const updateFormData = (field: keyof JobFormData, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev) => ({ ...prev, [field]: value }));
     // Clear error when user starts typing
     if (errors[field]) {
-      setErrors(prev => ({ ...prev, [field]: undefined }));
+      setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
     setShowDatePicker(false);
     if (selectedDate) {
-      updateFormData('preferredDate', selectedDate.toISOString());
+      // Ensure the date is properly formatted for the backend
+      const isoString = selectedDate.toISOString();
+      console.log('📅 Date selected:', selectedDate, 'ISO:', isoString);
+      updateFormData('preferredDate', isoString);
     }
   };
 
   const addRequirement = () => {
     if (newRequirement.trim()) {
-      updateFormData('requirements', [...formData.requirements, newRequirement.trim()]);
+      updateFormData('requirements', [
+        ...formData.requirements,
+        newRequirement.trim(),
+      ]);
       setNewRequirement('');
     }
   };
 
   const removeRequirement = (index: number) => {
-    const updatedRequirements = formData.requirements.filter((_, i) => i !== index);
+    const updatedRequirements = formData.requirements.filter(
+      (_, i) => i !== index
+    );
     updateFormData('requirements', updatedRequirements);
   };
 
@@ -95,8 +107,8 @@ function JobPostScreen() {
 
       setLoading(true);
 
-      // Submit job
-      await apiService.createJob({
+      // Prepare job data
+      const jobData = {
         title: formData.title,
         description: formData.description,
         category: formData.category,
@@ -105,18 +117,25 @@ function JobPostScreen() {
         location: formData.location,
         preferredDate: formData.preferredDate,
         requirements: formData.requirements,
-      });
+      };
 
-      Alert.alert(
-        'Success',
-        'Your job has been posted successfully!',
-        [
-          {
-            text: 'OK',
-            onPress: () => navigation.goBack(),
-          },
-        ]
+      console.log(
+        '🔧 JOB POST: Submitting job data:',
+        JSON.stringify(jobData, null, 2)
       );
+
+      // Submit job
+      await apiService.createJob(jobData);
+
+      Alert.alert('Success', 'Your job has been posted successfully!', [
+        {
+          text: 'OK',
+          onPress: () => {
+            // Go back to the previous screen (Jobs list)
+            navigation.goBack();
+          },
+        },
+      ]);
     } catch (error) {
       ErrorHandler.handle(error);
     } finally {
@@ -124,7 +143,7 @@ function JobPostScreen() {
     }
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDateForDisplay = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString('en-US', {
       weekday: 'long',
@@ -140,9 +159,20 @@ function JobPostScreen() {
         style={styles.keyboardAvoid}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+        >
           <View style={styles.header}>
-            <Text style={styles.title}>Post a Job</Text>
+            <View style={styles.headerTop}>
+              <Text style={styles.title}>Post a Job</Text>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={() => navigation.goBack()}
+              >
+                <Icon name="close" size={24} color="#666" />
+              </TouchableOpacity>
+            </View>
             <Text style={styles.subtitle}>
               Describe your project to find the right worker
             </Text>
@@ -158,26 +188,30 @@ function JobPostScreen() {
               onChangeText={(text) => updateFormData('title', text)}
               maxLength={100}
             />
-            {errors.title && <Text style={styles.errorText}>{errors.title}</Text>}
+            {errors.title && (
+              <Text style={styles.errorText}>{errors.title}</Text>
+            )}
           </View>
 
           {/* Category */}
           <View style={styles.section}>
             <Text style={styles.label}>Category *</Text>
             <View style={styles.categoryGrid}>
-              {JOB_CATEGORIES.map(category => (
+              {JOB_CATEGORIES.map((category) => (
                 <TouchableOpacity
                   key={category}
                   style={[
                     styles.categoryChip,
-                    formData.category === category && styles.categoryChipSelected,
+                    formData.category === category &&
+                      styles.categoryChipSelected,
                   ]}
                   onPress={() => updateFormData('category', category)}
                 >
                   <Text
                     style={[
                       styles.categoryChipText,
-                      formData.category === category && styles.categoryChipTextSelected,
+                      formData.category === category &&
+                        styles.categoryChipTextSelected,
                     ]}
                   >
                     {category.charAt(0).toUpperCase() + category.slice(1)}
@@ -185,14 +219,19 @@ function JobPostScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-            {errors.category && <Text style={styles.errorText}>{errors.category}</Text>}
+            {errors.category && (
+              <Text style={styles.errorText}>{errors.category}</Text>
+            )}
           </View>
 
           {/* Description */}
           <View style={styles.section}>
             <Text style={styles.label}>Description *</Text>
             <TextInput
-              style={[styles.textArea, errors.description ? styles.inputError : null]}
+              style={[
+                styles.textArea,
+                errors.description ? styles.inputError : null,
+              ]}
               placeholder="Describe the work that needs to be done, including any specific requirements or preferences..."
               value={formData.description}
               onChangeText={(text) => updateFormData('description', text)}
@@ -204,7 +243,9 @@ function JobPostScreen() {
             <Text style={styles.characterCount}>
               {formData.description.length}/1000 characters
             </Text>
-            {errors.description && <Text style={styles.errorText}>{errors.description}</Text>}
+            {errors.description && (
+              <Text style={styles.errorText}>{errors.description}</Text>
+            )}
           </View>
 
           {/* Budget Range */}
@@ -214,21 +255,35 @@ function JobPostScreen() {
               <View style={styles.budgetInput}>
                 <Text style={styles.budgetLabel}>Minimum ($)</Text>
                 <TextInput
-                  style={[styles.input, errors.budgetMin ? styles.inputError : null]}
+                  style={[
+                    styles.input,
+                    errors.budgetMin ? styles.inputError : null,
+                  ]}
                   placeholder="0"
                   keyboardType="numeric"
-                  value={formData.budgetMin > 0 ? formData.budgetMin.toString() : ''}
-                  onChangeText={(text) => updateFormData('budgetMin', parseInt(text) || 0)}
+                  value={
+                    formData.budgetMin > 0 ? formData.budgetMin.toString() : ''
+                  }
+                  onChangeText={(text) =>
+                    updateFormData('budgetMin', parseInt(text) || 0)
+                  }
                 />
               </View>
               <View style={styles.budgetInput}>
                 <Text style={styles.budgetLabel}>Maximum ($)</Text>
                 <TextInput
-                  style={[styles.input, errors.budgetMax ? styles.inputError : null]}
+                  style={[
+                    styles.input,
+                    errors.budgetMax ? styles.inputError : null,
+                  ]}
                   placeholder="0"
                   keyboardType="numeric"
-                  value={formData.budgetMax > 0 ? formData.budgetMax.toString() : ''}
-                  onChangeText={(text) => updateFormData('budgetMax', parseInt(text) || 0)}
+                  value={
+                    formData.budgetMax > 0 ? formData.budgetMax.toString() : ''
+                  }
+                  onChangeText={(text) =>
+                    updateFormData('budgetMax', parseInt(text) || 0)
+                  }
                 />
               </View>
             </View>
@@ -246,7 +301,10 @@ function JobPostScreen() {
               value={formData.location}
               onChangeText={(text) => updateFormData('location', text)}
               onAddressSelect={(address) => {
-                updateFormData('location', address.formattedAddress || address.address);
+                updateFormData(
+                  'location',
+                  address.formattedAddress || address.address
+                );
                 // Store coordinates for later use
                 updateFormData('latitude', address.coordinates.latitude);
                 updateFormData('longitude', address.coordinates.longitude);
@@ -254,23 +312,30 @@ function JobPostScreen() {
               placeholder="Enter address, city, or zip code"
               style={[errors.location ? styles.inputError : null]}
             />
-            {errors.location && <Text style={styles.errorText}>{errors.location}</Text>}
+            {errors.location && (
+              <Text style={styles.errorText}>{errors.location}</Text>
+            )}
           </View>
 
           {/* Preferred Date */}
           <View style={styles.section}>
             <Text style={styles.label}>Preferred Start Date *</Text>
             <TouchableOpacity
-              style={[styles.dateButton, errors.preferredDate ? styles.inputError : null]}
+              style={[
+                styles.dateButton,
+                errors.preferredDate ? styles.inputError : null,
+              ]}
               onPress={() => setShowDatePicker(true)}
             >
-              <Icon name="event" size={20} color="#666" />
+              <Icon name="calendar" size={20} color="#666" />
               <Text style={styles.dateButtonText}>
-                {formatDate(formData.preferredDate)}
+                {formatDateForDisplay(formData.preferredDate)}
               </Text>
-              <Icon name="keyboard-arrow-down" size={20} color="#666" />
+              <Icon name="chevron-down" size={20} color="#666" />
             </TouchableOpacity>
-            {errors.preferredDate && <Text style={styles.errorText}>{errors.preferredDate}</Text>}
+            {errors.preferredDate && (
+              <Text style={styles.errorText}>{errors.preferredDate}</Text>
+            )}
           </View>
 
           {/* Requirements */}
@@ -279,7 +344,7 @@ function JobPostScreen() {
             <Text style={styles.helperText}>
               Add specific requirements or qualifications for this job
             </Text>
-            
+
             <View style={styles.requirementInput}>
               <TextInput
                 style={styles.input}
@@ -319,7 +384,10 @@ function JobPostScreen() {
         {/* Submit Button */}
         <View style={styles.footer}>
           <TouchableOpacity
-            style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+            style={[
+              styles.submitButton,
+              loading && styles.submitButtonDisabled,
+            ]}
             onPress={handleSubmit}
             disabled={loading}
           >
@@ -360,11 +428,21 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 8,
   },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 4,
+  },
+  closeButton: {
+    padding: 8,
+    borderRadius: 20,
+    backgroundColor: '#f5f5f5',
   },
   subtitle: {
     fontSize: 16,

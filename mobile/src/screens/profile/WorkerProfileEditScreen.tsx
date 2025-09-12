@@ -25,22 +25,10 @@ export default function WorkerProfileEditScreen() {
 
     try {
       setIsLoading(true);
-      // In a real app, this would fetch the worker profile from the API
-      // For now, we'll use mock data
-      const mockProfile: Partial<WorkerProfile> = {
-        userId: user.id,
-        bio: '',
-        skills: [],
-        serviceCategories: [],
-        hourlyRate: 0,
-        location: '',
-        portfolioImages: [],
-        kycStatus: 'pending',
-        rating: 0,
-        totalJobs: 0,
-      };
-      setProfile(mockProfile);
+      const workerProfile = await apiService.getWorkerProfile();
+      setProfile(workerProfile);
     } catch (error) {
+      console.error('Error loading worker profile:', error);
       Alert.alert('Error', 'Failed to load profile');
     } finally {
       setIsLoading(false);
@@ -51,15 +39,13 @@ export default function WorkerProfileEditScreen() {
     try {
       setIsLoading(true);
       
-      // In a real app, this would call the API to update the worker profile
-      // await apiService.updateWorkerProfile(profileData);
+      console.log('Saving worker profile:', profileData);
+      const updatedProfile = await apiService.updateWorkerProfile(profileData);
       
-      // For now, we'll just simulate the API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setProfile(prev => ({ ...prev, ...profileData }));
+      setProfile(updatedProfile);
       Alert.alert('Success', 'Profile updated successfully');
     } catch (error) {
+      console.error('Error updating worker profile:', error);
       Alert.alert('Error', 'Failed to update profile');
       throw error;
     } finally {

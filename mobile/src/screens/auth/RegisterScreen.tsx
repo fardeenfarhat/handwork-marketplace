@@ -49,6 +49,7 @@ export default function RegisterScreen() {
   // Navigate to email verification after successful registration
   const { isAuthenticated, isEmailVerified, onboardingCompleted } = useSelector((state: RootState) => state.auth);
   
+  // Remove automatic navigation - let AppNavigator handle the flow
   useEffect(() => {
     console.log('🔄 REGISTER SCREEN: Navigation effect triggered');
     console.log('🔐 isAuthenticated:', isAuthenticated);
@@ -56,19 +57,9 @@ export default function RegisterScreen() {
     console.log('🎯 onboardingCompleted:', onboardingCompleted);
     console.log('⏳ isLoading:', isLoading);
     
-    if (isAuthenticated && !isLoading) {
-      console.log('✅ User is authenticated and not loading');
-      if (!isEmailVerified) {
-        console.log('📧 Navigating to email verification...');
-        navigation.navigate('EmailVerification', { email: formData.email });
-      } else if (!onboardingCompleted) {
-        console.log('🎯 Navigating to onboarding...');
-        navigation.navigate('Onboarding', { role: formData.role });
-      }
-    } else {
-      console.log('⏳ Still loading or not authenticated yet');
-    }
-  }, [isAuthenticated, isEmailVerified, onboardingCompleted, isLoading, navigation, formData.email, formData.role]);
+    // AppNavigator will handle navigation based on auth state
+    // No manual navigation needed here
+  }, [isAuthenticated, isEmailVerified, onboardingCompleted, isLoading]);
 
   const handleInputChange = (field: keyof RegisterData, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));

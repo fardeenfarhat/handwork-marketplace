@@ -49,11 +49,15 @@ async def get_users(
     """Get paginated list of users with filters"""
     admin_service = AdminService(db)
     
+    # Convert empty strings to None for proper validation
+    role_filter = role if role and role.strip() else None
+    search_filter = search if search and search.strip() else None
+    
     filters = UserFilters(
-        role=role,
+        role=role_filter,
         is_verified=is_verified,
         is_active=is_active,
-        search=search
+        search=search_filter
     )
     
     users, total = admin_service.get_users(filters, page, size)
@@ -104,10 +108,15 @@ async def get_jobs(
     """Get paginated list of jobs with filters"""
     admin_service = AdminService(db)
     
+    # Convert empty strings to None for proper validation
+    status_filter = status if status and status.strip() else None
+    category_filter = category if category and category.strip() else None
+    search_filter = search if search and search.strip() else None
+    
     filters = JobFilters(
-        status=status,
-        category=category,
-        search=search,
+        status=status_filter,
+        category=category_filter,
+        search=search_filter,
         min_budget=min_budget,
         max_budget=max_budget
     )
@@ -148,9 +157,13 @@ async def get_payments(
     """Get paginated list of payments with filters"""
     admin_service = AdminService(db)
     
+    # Convert empty strings to None for proper validation
+    status_filter = status if status and status.strip() else None
+    payment_method_filter = payment_method if payment_method and payment_method.strip() else None
+    
     filters = PaymentFilters(
-        status=status,
-        payment_method=payment_method,
+        status=status_filter,
+        payment_method=payment_method_filter,
         min_amount=min_amount,
         max_amount=max_amount
     )
@@ -178,7 +191,9 @@ async def get_disputes(
     """Get paginated list of disputes with filters"""
     admin_service = AdminService(db)
     
-    filters = DisputeFilters(status=status)
+    # Convert empty string to None for proper validation
+    status_filter = status if status and status.strip() else None
+    filters = DisputeFilters(status=status_filter)
     disputes, total = admin_service.get_disputes(filters, page, size)
     pages = (total + size - 1) // size
     
@@ -223,8 +238,11 @@ async def get_reviews_for_moderation(
     """Get paginated list of reviews for moderation"""
     admin_service = AdminService(db)
     
+    # Convert empty string to None for proper validation
+    status_filter = status if status and status.strip() else None
+    
     filters = ReviewFilters(
-        status=status,
+        status=status_filter,
         min_rating=min_rating,
         max_rating=max_rating
     )

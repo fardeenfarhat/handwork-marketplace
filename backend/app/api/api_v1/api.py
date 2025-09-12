@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.api_v1.endpoints import auth, profiles, jobs, messages, payments, bookings, reviews, recommendations, ml_recommendations, admin, notifications, websocket, security
+from app.api.api_v1.endpoints import auth, profiles, jobs, messages, payments, bookings, reviews, recommendations, ml_recommendations, admin, notifications, websocket, security, users
 
 api_router = APIRouter()
 
@@ -10,6 +10,7 @@ async def api_root():
 
 # Include routers
 api_router.include_router(auth.router, prefix="/auth", tags=["authentication"])
+api_router.include_router(users.router, prefix="/users", tags=["users"])
 api_router.include_router(profiles.router, prefix="/profiles", tags=["profiles"])
 api_router.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
 api_router.include_router(messages.router, prefix="/messages", tags=["messaging"])

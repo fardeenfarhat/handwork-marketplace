@@ -33,9 +33,24 @@ export default function AppNavigator() {
   console.log('🎯 onboardingCompleted:', onboardingCompleted);
 
   useEffect(() => {
-    console.log('🧭 APP NAVIGATOR: Loading stored auth...');
-    // Load stored authentication on app start
-    dispatch(loadStoredAuth());
+    const checkStoredAuth = async () => {
+      console.log('🧭 APP NAVIGATOR: Checking for stored auth...');
+      try {
+        const { secureStorage } = await import('@/services/storage');
+        const rememberMe = await secureStorage.getItem('remember_me');
+        
+        if (rememberMe === 'true') {
+          console.log('🧭 APP NAVIGATOR: User chose to be remembered, loading stored auth...');
+          dispatch(loadStoredAuth());
+        } else {
+          console.log('🧭 APP NAVIGATOR: No remember me preference, starting fresh');
+        }
+      } catch (error) {
+        console.log('🧭 APP NAVIGATOR: Error checking remember me preference:', error);
+      }
+    };
+
+    checkStoredAuth();
   }, [dispatch]);
 
   // Handle deep links
@@ -50,14 +65,20 @@ export default function AppNavigator() {
   }
 
   // Determine which navigator to show based on auth state
+  // Show auth navigator if:
+  // 1. User is not authenticated, OR
+  // 2. User is authenticated but email not verified, OR  
+  // 3. User is authenticated and email verified but onboarding not completed
   const shouldShowAuth = !isAuthenticated || 
-    (isAuthenticated && (!isEmailVerified || !onboardingCompleted));
+    (isAuthenticated && !isEmailVerified) || 
+    (isAuthenticated && isEmailVerified && !onboardingCompleted);
   
   console.log('🧭 APP NAVIGATOR: shouldShowAuth =', shouldShowAuth);
   console.log('🧭 Navigation decision logic:');
   console.log('  - !isAuthenticated:', !isAuthenticated);
   console.log('  - isAuthenticated && !isEmailVerified:', isAuthenticated && !isEmailVerified);
-  console.log('  - isAuthenticated && !onboardingCompleted:', isAuthenticated && !onboardingCompleted);
+  console.log('  - isAuthenticated && isEmailVerified && !onboardingCompleted:', isAuthenticated && isEmailVerified && !onboardingCompleted);
+  console.log('  - Will show:', shouldShowAuth ? 'Auth Navigator' : 'Main Navigator');
 
   return (
     <NavigationContainer

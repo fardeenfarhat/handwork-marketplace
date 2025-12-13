@@ -15,6 +15,8 @@ class UserRegistration(BaseModel):
     def validate_password(cls, v):
         if len(v) < 8:
             raise ValueError('Password must be at least 8 characters long')
+        if len(v) > 72:
+            raise ValueError('Password cannot be longer than 72 characters')
         return v
     
     @validator('first_name', 'last_name')
@@ -54,6 +56,17 @@ class PhoneVerificationRequest(BaseModel):
 class VerifyTokenRequest(BaseModel):
     token: str
 
+class VerifyEmailCodeRequest(BaseModel):
+    code: str
+    
+    @validator('code')
+    def validate_code(cls, v):
+        # Remove any spaces or dashes
+        v = v.replace(' ', '').replace('-', '')
+        if not v.isdigit() or len(v) != 6:
+            raise ValueError('Code must be exactly 6 digits')
+        return v
+
 class PasswordResetRequest(BaseModel):
     email: EmailStr
 
@@ -65,6 +78,8 @@ class PasswordResetConfirm(BaseModel):
     def validate_password(cls, v):
         if len(v) < 8:
             raise ValueError('Password must be at least 8 characters long')
+        if len(v) > 72:
+            raise ValueError('Password cannot be longer than 72 characters')
         return v
 
 class RefreshTokenRequest(BaseModel):

@@ -5,6 +5,7 @@ from passlib.context import CryptContext
 from fastapi import HTTPException, status
 import secrets
 import uuid
+import random
 
 from app.core.config import settings
 
@@ -63,15 +64,21 @@ def decode_access_token(token: str) -> Optional[dict]:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify a password against its hash"""
+    # Truncate to 72 bytes for bcrypt compatibility
+    if len(plain_password.encode('utf-8')) > 72:
+        plain_password = plain_password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
     return pwd_context.verify(plain_password, hashed_password)
 
 def get_password_hash(password: str) -> str:
     """Generate password hash"""
+    # Truncate to 72 bytes for bcrypt compatibility
+    if len(password.encode('utf-8')) > 72:
+        password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
     return pwd_context.hash(password)
 
 def generate_verification_token() -> str:
-    """Generate a secure random token for email/phone verification"""
-    return secrets.token_urlsafe(32)
+    """Generate a secure 6-digit code for email/phone verification"""
+    return str(random.randint(100000, 999999))
 
 def generate_reset_token() -> str:
     """Generate a secure random token for password reset"""

@@ -95,12 +95,12 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index('idx_worker_profiles_location_kyc', 'worker_profiles', ['location', 'kyc_status'], unique=False)
-    op.create_index('idx_worker_profiles_rating_categories', 'worker_profiles', ['rating', 'service_categories'], unique=False)
+    # Removed: idx_worker_profiles_rating_categories (includes JSON column service_categories)
     op.create_index(op.f('ix_worker_profiles_id'), 'worker_profiles', ['id'], unique=False)
     op.create_index(op.f('ix_worker_profiles_kyc_status'), 'worker_profiles', ['kyc_status'], unique=False)
     op.create_index(op.f('ix_worker_profiles_location'), 'worker_profiles', ['location'], unique=False)
     op.create_index(op.f('ix_worker_profiles_rating'), 'worker_profiles', ['rating'], unique=False)
-    op.create_index(op.f('ix_worker_profiles_service_categories'), 'worker_profiles', ['service_categories'], unique=False)
+    # Removed: ix_worker_profiles_service_categories (JSON column not supported by btree index in PostgreSQL)
     op.create_index(op.f('ix_worker_profiles_user_id'), 'worker_profiles', ['user_id'], unique=True)
     op.create_table('jobs',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -301,12 +301,12 @@ def downgrade() -> None:
     op.drop_index('idx_jobs_category_status_location', table_name='jobs')
     op.drop_table('jobs')
     op.drop_index(op.f('ix_worker_profiles_user_id'), table_name='worker_profiles')
-    op.drop_index(op.f('ix_worker_profiles_service_categories'), table_name='worker_profiles')
+    # op.drop_index(op.f('ix_worker_profiles_service_categories'), table_name='worker_profiles')  # Never created
     op.drop_index(op.f('ix_worker_profiles_rating'), table_name='worker_profiles')
     op.drop_index(op.f('ix_worker_profiles_location'), table_name='worker_profiles')
     op.drop_index(op.f('ix_worker_profiles_kyc_status'), table_name='worker_profiles')
     op.drop_index(op.f('ix_worker_profiles_id'), table_name='worker_profiles')
-    op.drop_index('idx_worker_profiles_rating_categories', table_name='worker_profiles')
+    # op.drop_index('idx_worker_profiles_rating_categories', table_name='worker_profiles')  # Never created
     op.drop_index('idx_worker_profiles_location_kyc', table_name='worker_profiles')
     op.drop_table('worker_profiles')
     op.drop_index(op.f('ix_notifications_user_id'), table_name='notifications')

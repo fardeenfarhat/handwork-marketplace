@@ -1,8 +1,10 @@
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 import time
 import asyncio
+import os
 
 from app.core.config import settings
 from app.api.api_v1.api import api_router
@@ -18,8 +20,9 @@ from app.core.security_audit import security_monitor
 from app.middleware import TimeoutMonitoringMiddleware
 from app.utils.config_validator import validate_startup_config, ConfigValidator
 
-# Create database tables
-models.Base.metadata.create_all(bind=engine)
+# Database tables are created using Alembic migrations
+# Run: alembic upgrade head
+# models.Base.metadata.create_all(bind=engine)
 
 # Setup database optimizations
 setup_database_optimizations(engine)
@@ -97,6 +100,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount static files for uploads
+uploads_dir = os.path.join(os.getcwd(), "uploads")
+if not os.path.exists(uploads_dir):
+    os.makedirs(uploads_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=uploads_dir), name="uploads")
 
 app.include_router(api_router, prefix=settings.API_V1_STR)
 

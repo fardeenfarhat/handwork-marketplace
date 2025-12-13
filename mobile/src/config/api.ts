@@ -21,15 +21,15 @@ const resolveDevBase = (): string => {
   const lanIP = process.env.EXPO_PUBLIC_LAN_IP;
   if (lanIP) return `http://${lanIP}:8000`;
 
-  // Use localhost for all platforms when using Expo tunneling
-  // Expo tunnel will handle routing from mobile device to localhost
-  return 'http://localhost:8000';
+  // Force using the IP that your mobile device can actually reach
+  // This matches what we see in the logs: 192.168.18.35
+  return 'http://192.168.18.35:8000';
 };
 
 const RAW_BASE =
   process.env.EXPO_PUBLIC_API_URL ||
   process.env.REACT_NATIVE_API_URL ||
-  (__DEV__ ? resolveDevBase() : 'https://your-production-api.com');
+  (__DEV__ ? resolveDevBase() : 'https://handwork-marketplace-api.onrender.com');
 
 const NORMALIZED_BASE = `${RAW_BASE.replace(/\/$/, '')}`; // strip trailing slash just in case
 

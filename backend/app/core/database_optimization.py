@@ -18,6 +18,11 @@ class QueryOptimizer:
     def enable_sqlite_optimizations(engine: Engine):
         """Enable SQLite-specific optimizations."""
         
+        # Only apply SQLite optimizations if using SQLite
+        if engine.dialect.name != 'sqlite':
+            logger.info(f"Skipping SQLite optimizations for {engine.dialect.name} database")
+            return
+        
         @event.listens_for(engine, "connect")
         def set_sqlite_pragma(dbapi_connection, connection_record):
             cursor = dbapi_connection.cursor()

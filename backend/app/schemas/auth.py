@@ -15,8 +15,8 @@ class UserRegistration(BaseModel):
     def validate_password(cls, v):
         if len(v) < 8:
             raise ValueError('Password must be at least 8 characters long')
-        if len(v) > 72:
-            raise ValueError('Password cannot be longer than 72 characters')
+        if len(v.encode('utf-8')) > 72:
+            raise ValueError('Password is too long (max 72 bytes)')
         return v
     
     @validator('first_name', 'last_name')
@@ -78,8 +78,8 @@ class PasswordResetConfirm(BaseModel):
     def validate_password(cls, v):
         if len(v) < 8:
             raise ValueError('Password must be at least 8 characters long')
-        if len(v) > 72:
-            raise ValueError('Password cannot be longer than 72 characters')
+        if len(v.encode('utf-8')) > 72:
+            raise ValueError('Password is too long (max 72 bytes)')
         return v
 
 class RefreshTokenRequest(BaseModel):

@@ -1,0 +1,22 @@
+# Ignore parent directories and other projects
+../backend
+../admin-web
+../docs
+../nginx
+../monitoring
+../testing
+../uploads
+
+# Ignore common files
+../.git
+../docker-compose*.yml
+../README.md
+../*.md
+../*.py
+../*.ps1
+../*.json
+
+# But keep mobile-specific files (everything in current directory is included by default)
+
+# Let EAS generate the android folder using expo prebuild
+android/

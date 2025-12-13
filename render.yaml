@@ -26,7 +26,7 @@ services:
         sync: false
       - key: FRONTEND_URL
         value: https://handwork-marketplace.onrender.com
-    healthCheckPath: /api/v1/health
+    healthCheckPath: /health
 
 databases:
   - name: handwork-marketplace-db

@@ -18,7 +18,7 @@ depends_on = None
 
 def upgrade():
     # Update existing users with uppercase roles to lowercase
-    # Strategy: Change column to TEXT, update values, change back to enum
+    # Strategy: Drop enum, use TEXT type
     connection = op.get_bind()
     
     # Step 1: Change role column to TEXT
@@ -31,8 +31,8 @@ def upgrade():
         WHERE role IN ('CLIENT', 'WORKER', 'ADMIN')
     """))
     
-    # Step 3: Change back to enum type
-    connection.execute(sa.text("ALTER TABLE users ALTER COLUMN role TYPE userrole USING role::userrole"))
+    # Step 3: Drop the old enum type (if not used anywhere else)
+    connection.execute(sa.text("DROP TYPE IF EXISTS userrole"))
 
 
 def downgrade():

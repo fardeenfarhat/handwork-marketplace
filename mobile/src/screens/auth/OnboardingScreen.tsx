@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,17 +6,21 @@ import {
   ScrollView,
   TouchableOpacity,
   Dimensions,
+  Animated,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { AuthStackParamList } from '@/types';
 import { AppDispatch, RootState } from '@/store';
 import { setOnboardingCompleted } from '@/store/slices/authSlice';
-import Button from '@/components/common/Button';
+import { ModernButton } from '@/components/ui/ModernButton';
+import { Colors, Typography, Spacing, BorderRadius, Shadows, Gradients } from '@/styles/DesignSystem';
 
 type OnboardingScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'Onboarding'>;
 type OnboardingScreenRouteProp = RouteProp<AuthStackParamList, 'Onboarding'>;
@@ -81,7 +85,7 @@ const workerSteps: OnboardingStep[] = [
     id: 'get-hired',
     title: 'Get Hired',
     description: 'Communicate with clients, negotiate terms, and get hired for projects that fit your schedule.',
-    icon: 'handshake',
+    icon: 'people-circle',
     color: '#FF9500',
   },
   {
@@ -99,14 +103,48 @@ export default function OnboardingScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const { user } = useSelector((state: RootState) => state.auth);
   
-  // Get role from route params or user state
   const role = route.params?.role || user?.role || 'client';
   
-  console.log('🎯 ONBOARDING SCREEN: Component mounted');
-  console.log('🎭 Role from params:', route.params?.role);
-  console.log('👤 Role from user:', user?.role);
-  console.log('🎯 Final role:', role);
   const [currentStep, setCurrentStep] = useState(0);
+  
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const progressAnim = useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    // Entrance animations
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  React.useEffect(() => {
+    // Animate progress
+    Animated.spring(progressAnim, {
+      toValue: currentStep,
+      tension: 50,
+      friction: 8,
+      useNativeDriver: false,
+    }).start();
+  }, [currentStep]);
   
   const steps = role === 'client' ? clientSteps : workerSteps;
   const isLastStep = currentStep === steps.length - 1;
@@ -130,229 +168,395 @@ export default function OnboardingScreen() {
   };
 
   const handleComplete = () => {
-    console.log('🎯 ONBOARDING: Completing onboarding...');
     dispatch(setOnboardingCompleted(true));
-    console.log('✅ ONBOARDING: Onboarding completed - AppNavigator will handle navigation to main app');
-    // AppNavigator will automatically navigate to main app based on auth state
   };
 
   const currentStepData = steps[currentStep];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>
-            Welcome {role === 'client' ? 'Client' : 'Worker'}!
-          </Text>
-          <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
-            <Text style={styles.skipText}>Skip</Text>
-          </TouchableOpacity>
-        </View>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={Colors.primary[500]} />
+      
+      {/* Background Gradient */}
+      <LinearGradient
+        colors={Gradients.orangeBlue}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.backgroundGradient}
+      />
 
-        {/* Progress Indicator */}
-        <View style={styles.progressContainer}>
-          {steps.map((_, index) => (
-            <View
-              key={index}
-              style={[
-                styles.progressDot,
-                index <= currentStep && styles.progressDotActive,
-              ]}
-            />
-          ))}
-        </View>
+      {/* Decorative Elements */}
+      <View style={styles.decorativeContainer}>
+        <View style={[styles.decorativeCircle, styles.circle1]} />
+        <View style={[styles.decorativeCircle, styles.circle2]} />
+        <View style={[styles.decorativeCircle, styles.circle3]} />
+      </View>
 
-        {/* Step Content */}
-        <ScrollView
-          contentContainerStyle={styles.stepContent}
-          showsVerticalScrollIndicator={false}
+      <SafeAreaView style={styles.safeArea}>
+        <Animated.View
+          style={[
+            styles.content,
+            {
+              opacity: fadeAnim,
+              transform: [
+                { translateY: slideAnim },
+                { scale: scaleAnim },
+              ],
+            },
+          ]}
         >
-          <View style={styles.iconContainer}>
-            <View style={[styles.iconCircle, { backgroundColor: `${currentStepData.color}20` }]}>
-              <Ionicons
-                name={currentStepData.icon}
-                size={64}
-                color={currentStepData.color}
+          {/* Header */}
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>
+              Welcome {role === 'client' ? 'Client' : 'Worker'}!
+            </Text>
+            <TouchableOpacity onPress={handleSkip} style={styles.skipButton}>
+              <LinearGradient
+                colors={['rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0.1)']}
+                style={styles.skipButtonGradient}
+              >
+                <Text style={styles.skipText}>Skip</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+
+          {/* Progress Indicator */}
+          <View style={styles.progressContainer}>
+            <View style={styles.progressTrack}>
+              <Animated.View
+                style={[
+                  styles.progressFill,
+                  {
+                    width: progressAnim.interpolate({
+                      inputRange: [0, steps.length - 1],
+                      outputRange: ['0%', '100%'],
+                    }),
+                  },
+                ]}
               />
+            </View>
+            <Text style={styles.progressText}>
+              {currentStep + 1} / {steps.length}
+            </Text>
+          </View>
+
+          {/* Step Content */}
+          <View style={styles.stepContent}>
+            <View style={styles.stepInner}>
+              {/* Icon Container */}
+              <View style={styles.iconContainer}>
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0.95)', 'rgba(255, 255, 255, 0.9)']}
+                  style={styles.iconGradient}
+                >
+                  <Ionicons
+                    name={currentStepData.icon}
+                    size={80}
+                    color={currentStepData.color}
+                  />
+                </LinearGradient>
+              </View>
+
+              <Text style={styles.stepTitle}>{currentStepData.title}</Text>
+              <Text style={styles.stepDescription}>{currentStepData.description}</Text>
+
+              {/* Step Dots */}
+              <View style={styles.dotsContainer}>
+                {steps.map((_, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.dot,
+                      index === currentStep && styles.dotActive,
+                    ]}
+                  />
+                ))}
+              </View>
+
+              {/* Role-specific tips */}
+              {currentStep === 0 && (
+                <View style={styles.tipsCard}>
+                  <LinearGradient
+                    colors={['rgba(255, 255, 255, 0.95)', 'rgba(255, 255, 255, 0.9)']}
+                    style={styles.tipsGradient}
+                  >
+                    <Text style={styles.tipsTitle}>
+                      {role === 'worker' ? 'Pro Tips:' : 'Best Practices:'}
+                    </Text>
+                    
+                    {role === 'worker' ? (
+                      <>
+                        <View style={styles.tipItem}>
+                          <View style={styles.tipIconContainer}>
+                            <Ionicons name="checkmark-circle" size={20} color={Colors.success[500]} />
+                          </View>
+                          <Text style={styles.tipText}>Upload high-quality portfolio images</Text>
+                        </View>
+                        <View style={styles.tipItem}>
+                          <View style={styles.tipIconContainer}>
+                            <Ionicons name="checkmark-circle" size={20} color={Colors.success[500]} />
+                          </View>
+                          <Text style={styles.tipText}>Complete KYC verification for more jobs</Text>
+                        </View>
+                        <View style={styles.tipItem}>
+                          <View style={styles.tipIconContainer}>
+                            <Ionicons name="checkmark-circle" size={20} color={Colors.success[500]} />
+                          </View>
+                          <Text style={styles.tipText}>Set competitive hourly rates</Text>
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <View style={styles.tipItem}>
+                          <View style={styles.tipIconContainer}>
+                            <Ionicons name="checkmark-circle" size={20} color={Colors.success[500]} />
+                          </View>
+                          <Text style={styles.tipText}>Provide clear job descriptions</Text>
+                        </View>
+                        <View style={styles.tipItem}>
+                          <View style={styles.tipIconContainer}>
+                            <Ionicons name="checkmark-circle" size={20} color={Colors.success[500]} />
+                          </View>
+                          <Text style={styles.tipText}>Set realistic budgets and timelines</Text>
+                        </View>
+                        <View style={styles.tipItem}>
+                          <View style={styles.tipIconContainer}>
+                            <Ionicons name="checkmark-circle" size={20} color={Colors.success[500]} />
+                          </View>
+                          <Text style={styles.tipText}>Check worker ratings and reviews</Text>
+                        </View>
+                      </>
+                    )}
+                  </LinearGradient>
+                </View>
+              )}
             </View>
           </View>
 
-          <Text style={styles.stepTitle}>{currentStepData.title}</Text>
-          <Text style={styles.stepDescription}>{currentStepData.description}</Text>
-
-          {/* Role-specific tips */}
-          {role === 'worker' && currentStep === 0 && (
-            <View style={styles.tipsContainer}>
-              <Text style={styles.tipsTitle}>Pro Tips:</Text>
-              <View style={styles.tipItem}>
-                <Ionicons name="checkmark-circle" size={16} color="#34C759" />
-                <Text style={styles.tipText}>Upload high-quality portfolio images</Text>
-              </View>
-              <View style={styles.tipItem}>
-                <Ionicons name="checkmark-circle" size={16} color="#34C759" />
-                <Text style={styles.tipText}>Complete KYC verification for more jobs</Text>
-              </View>
-              <View style={styles.tipItem}>
-                <Ionicons name="checkmark-circle" size={16} color="#34C759" />
-                <Text style={styles.tipText}>Set competitive hourly rates</Text>
-              </View>
-            </View>
-          )}
-
-          {role === 'client' && currentStep === 0 && (
-            <View style={styles.tipsContainer}>
-              <Text style={styles.tipsTitle}>Best Practices:</Text>
-              <View style={styles.tipItem}>
-                <Ionicons name="checkmark-circle" size={16} color="#34C759" />
-                <Text style={styles.tipText}>Provide clear job descriptions</Text>
-              </View>
-              <View style={styles.tipItem}>
-                <Ionicons name="checkmark-circle" size={16} color="#34C759" />
-                <Text style={styles.tipText}>Set realistic budgets and timelines</Text>
-              </View>
-              <View style={styles.tipItem}>
-                <Ionicons name="checkmark-circle" size={16} color="#34C759" />
-                <Text style={styles.tipText}>Check worker ratings and reviews</Text>
-              </View>
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Navigation */}
-        <View style={styles.navigation}>
-          <Button
-            title="Previous"
-            variant="outline"
-            onPress={handlePrevious}
-            disabled={currentStep === 0}
-            style={[styles.navButton, styles.previousButton]}
-          />
-          
-          <Button
-            title={isLastStep ? 'Get Started' : 'Next'}
-            onPress={handleNext}
-            style={[styles.navButton, styles.nextButton]}
-          />
-        </View>
-      </View>
-    </SafeAreaView>
+          {/* Navigation */}
+          <View style={styles.navigation}>
+            {currentStep > 0 ? (
+              <TouchableOpacity
+                onPress={handlePrevious}
+                style={styles.navButton}
+              >
+                <View style={styles.previousButton}>
+                  <Text style={styles.previousButtonText}>Previous</Text>
+                </View>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.navButton} />
+            )}
+            
+            <ModernButton
+              title={isLastStep ? 'Get Started' : 'Next'}
+              onPress={handleNext}
+              style={styles.navButton}
+            />
+          </View>
+        </Animated.View>
+      </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.background.primary,
+  },
+  backgroundGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  decorativeContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 500,
+  },
+  decorativeCircle: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  circle1: {
+    width: 300,
+    height: 300,
+    top: -120,
+    right: -100,
+  },
+  circle2: {
+    width: 200,
+    height: 200,
+    top: 200,
+    left: -60,
+  },
+  circle3: {
+    width: 150,
+    height: 150,
+    top: 400,
+    right: 60,
+  },
+  safeArea: {
+    flex: 1,
   },
   content: {
     flex: 1,
-    padding: 24,
+    paddingHorizontal: Spacing[5],
+    paddingTop: Spacing[4],
+    paddingBottom: Spacing[5],
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: Spacing[6],
   },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: Typography.fontSize['3xl'],
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
   },
   skipButton: {
-    padding: 8,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[2],
+  },
+  skipButtonGradient: {
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[2],
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   skipText: {
-    fontSize: 16,
-    color: '#007AFF',
-    fontWeight: '500',
+    fontSize: Typography.fontSize.base,
+    color: '#FFFFFF',
+    fontWeight: '600' as const,
   },
   progressContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 40,
-    gap: 8,
+    marginBottom: Spacing[6],
   },
-  progressDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#E5E5EA',
+  progressTrack: {
+    height: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
+    marginBottom: Spacing[2],
   },
-  progressDotActive: {
-    backgroundColor: '#007AFF',
-    width: 24,
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.full,
+  },
+  progressText: {
+    fontSize: Typography.fontSize.sm,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+    fontWeight: '600' as const,
   },
   stepContent: {
     flex: 1,
+  },
+  stepInner: {
+    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 20,
   },
   iconContainer: {
-    marginBottom: 32,
+    marginBottom: Spacing[6],
   },
-  iconCircle: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    justifyContent: 'center',
+  iconGradient: {
+    width: 150,
+    height: 150,
+    borderRadius: BorderRadius.full,
     alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.xl,
   },
   stepTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: Typography.fontSize['4xl'],
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: Spacing[4],
   },
   stepDescription: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: Typography.fontSize.lg,
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
-    lineHeight: 24,
-    paddingHorizontal: 20,
-    marginBottom: 32,
+    lineHeight: 28,
+    paddingHorizontal: Spacing[4],
+    marginBottom: Spacing[5],
   },
-  tipsContainer: {
+  dotsContainer: {
+    flexDirection: 'row',
+    gap: Spacing[2],
+    marginBottom: Spacing[6],
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  dotActive: {
+    backgroundColor: '#FFFFFF',
+    width: 24,
+  },
+  tipsCard: {
     width: '100%',
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    padding: 20,
-    marginTop: 20,
+    marginTop: Spacing[4],
+  },
+  tipsGradient: {
+    borderRadius: BorderRadius.xl,
+    padding: Spacing[5],
+    ...Shadows.lg,
   },
   tipsTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 16,
+    fontSize: Typography.fontSize.xl,
+    fontWeight: '700' as const,
+    color: Colors.neutral[900],
+    marginBottom: Spacing[4],
   },
   tipItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: Spacing[3],
+  },
+  tipIconContainer: {
+    marginRight: Spacing[2],
   },
   tipText: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 8,
     flex: 1,
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[700],
+    lineHeight: 24,
   },
   navigation: {
     flexDirection: 'row',
-    gap: 12,
-    paddingTop: 20,
+    gap: Spacing[3],
+    paddingTop: Spacing[4],
   },
   navButton: {
     flex: 1,
   },
   previousButton: {
-    // Additional styles for previous button if needed
+    height: 50,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
   },
-  nextButton: {
-    // Additional styles for next button if needed
+  previousButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
 });

@@ -78,11 +78,13 @@ class EmailService:
         print(f"Subject: {subject}")
         print(f"Type: {content_type}")
         if token:
-            print(f"Token: {token}")
             if "verification" in content_type.lower():
-                print(f"Verification URL: {settings.FRONTEND_URL}/verify-email?token={token}")
-            elif "reset" in content_type.lower():
-                print(f"Reset URL: {settings.FRONTEND_URL}/reset-password?token={token}")
+                print(f"🔢 Verification Code: {token}")
+                print(f"📱 Enter this 6-digit code in the app to verify your email")
+            else:
+                print(f"Token: {token}")
+                if "reset" in content_type.lower():
+                    print(f"Reset URL: {settings.FRONTEND_URL}/reset-password?token={token}")
         
         # Show configuration status
         if self.config_validation["warnings"]:
@@ -179,10 +181,9 @@ class EmailService:
             self._log_email_to_console(to_email, "Email Verification", "Email Verification", token)
             if self.console_logging:
                 print(f"📋 API Usage: POST /api/v1/auth/verify-email")
-                print(f"📋 Request Body: {{\"token\": \"{token}\"}}")
+                print(f"📋 Request Body: {{\"code\": \"{token}\"}}")
+                print(f"🔢 Your 6-digit verification code: {token}")
             return True
-            
-        verification_url = f"{settings.FRONTEND_URL}/verify-email?token={token}"
         
         subject = "Verify Your Email - Handwork Marketplace"
         
@@ -199,19 +200,20 @@ class EmailService:
                 
                 <p>Hi {user_name},</p>
                 
-                <p>Thank you for registering with Handwork Marketplace. To complete your registration, please verify your email address by clicking the button below:</p>
+                <p>Thank you for registering with Handwork Marketplace. To complete your registration, please verify your email address using the 6-digit code below:</p>
                 
                 <div style="text-align: center; margin: 30px 0;">
-                    <a href="{verification_url}" 
-                       style="background-color: #3498db; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; display: inline-block;">
-                        Verify Email Address
-                    </a>
+                    <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; border: 2px solid #3498db;">
+                        <h1 style="color: #3498db; font-size: 36px; margin: 0; letter-spacing: 8px; font-family: 'Courier New', monospace;">
+                            {token}
+                        </h1>
+                        <p style="color: #666; margin: 10px 0 0 0; font-size: 14px;">Verification Code</p>
+                    </div>
                 </div>
                 
-                <p>If the button doesn't work, you can copy and paste this link into your browser:</p>
-                <p style="word-break: break-all; color: #3498db;">{verification_url}</p>
+                <p>Enter this code in the verification screen of the app to complete your registration.</p>
                 
-                <p>This verification link will expire in 24 hours.</p>
+                <p>This verification code will expire in 24 hours.</p>
                 
                 <p>If you didn't create an account with us, please ignore this email.</p>
                 
@@ -230,11 +232,13 @@ class EmailService:
         
         Hi {user_name},
         
-        Thank you for registering with Handwork Marketplace. To complete your registration, please verify your email address by visiting this link:
+        Thank you for registering with Handwork Marketplace. To complete your registration, please verify your email address using this 6-digit code:
         
-        {verification_url}
+        {token}
         
-        This verification link will expire in 24 hours.
+        Enter this code in the verification screen of the app to complete your registration.
+        
+        This verification code will expire in 24 hours.
         
         If you didn't create an account with us, please ignore this email.
         

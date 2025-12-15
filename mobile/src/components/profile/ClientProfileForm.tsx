@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,8 +8,9 @@ import {
   Alert,
 } from 'react-native';
 import { ClientProfile } from '@/types';
-import Button from '@/components/common/Button';
+import { ModernButton } from '@/components/ui/ModernButton';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/styles/DesignSystem';
 
 interface ClientProfileFormProps {
   profile?: Partial<ClientProfile>;
@@ -27,6 +28,17 @@ export default function ClientProfileForm({
     description: profile.description || '',
     location: profile.location || '',
   });
+
+  // Update form data when profile changes
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        companyName: profile.companyName || '',
+        description: profile.description || '',
+        location: profile.location || '',
+      });
+    }
+  }, [profile]);
 
   const handleSave = async () => {
     if (!formData.description.trim()) {
@@ -95,11 +107,11 @@ export default function ClientProfileForm({
         </Text>
       </View>
 
-      <Button
+      <ModernButton
         title="Save Profile"
         onPress={handleSave}
         style={styles.saveButton}
-        disabled={isLoading}
+        loading={isLoading}
       />
     </ScrollView>
   );
@@ -108,7 +120,8 @@ export default function ClientProfileForm({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
+    paddingTop: Spacing[3],
   },
   loadingContainer: {
     flex: 1,
@@ -116,40 +129,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   section: {
-    padding: 20,
+    paddingHorizontal: Spacing[5],
+    paddingVertical: Spacing[4],
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: Colors.neutral[100],
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 12,
-    color: '#333',
+    fontSize: Typography.fontSize.lg,
+    fontWeight: '700' as const,
+    marginBottom: Spacing[3],
+    color: Colors.neutral[900],
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#fff',
+    borderColor: Colors.neutral[300],
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
+    fontSize: Typography.fontSize.base,
+    backgroundColor: Colors.neutral[50],
+    color: Colors.neutral[900],
   },
   descriptionInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#fff',
-    minHeight: 100,
+    borderColor: Colors.neutral[300],
+    borderRadius: BorderRadius.lg,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
+    fontSize: Typography.fontSize.base,
+    backgroundColor: Colors.neutral[50],
+    color: Colors.neutral[900],
+    minHeight: 120,
   },
   helpText: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 6,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    marginTop: Spacing[2],
     fontStyle: 'italic',
   },
   saveButton: {
-    margin: 20,
+    marginHorizontal: Spacing[5],
+    marginVertical: Spacing[5],
   },
 });

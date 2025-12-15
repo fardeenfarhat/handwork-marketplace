@@ -48,6 +48,7 @@ class PaymentConfig:
     paypal_client_secret: str
     paypal_webhook_id: str
     platform_fee_percentage: float = 5.0
+    auto_release_days: int = 14
 
 @dataclass
 class NotificationConfig:
@@ -165,7 +166,8 @@ class ConfigManager:
             paypal_client_id=self._get_required('PAYPAL_CLIENT_ID'),
             paypal_client_secret=self._get_required('PAYPAL_CLIENT_SECRET'),
             paypal_webhook_id=self._get_required('PAYPAL_WEBHOOK_ID'),
-            platform_fee_percentage=float(os.getenv('PLATFORM_FEE_PERCENTAGE', '5.0'))
+            platform_fee_percentage=float(os.getenv('PLATFORM_FEE_PERCENTAGE', '5.0')),
+            auto_release_days=int(os.getenv('AUTO_RELEASE_DAYS', '14'))
         )
         
         # Notification configuration

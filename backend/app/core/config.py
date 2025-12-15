@@ -22,12 +22,16 @@ class Settings(BaseSettings):
     ALLOWED_HOSTS: List[str] = [
         "http://localhost:3000",  # Admin web
         "http://127.0.0.1:3000",  # Admin web alternative
+        "http://172.15.67.158:3000",  # Admin web - new IP
         "http://localhost:8081",  # Expo dev server
         "http://127.0.0.1:8081",  # Expo dev server alternative
+        "http://172.15.67.158:8081",  # Expo dev server - new IP
         "http://localhost:19006", # Expo web
         "http://127.0.0.1:19006", # Expo web alternative
+        "http://172.15.67.158:19006", # Expo web - new IP
         "exp://localhost:19000",  # Expo mobile
         "exp://127.0.0.1:19000",  # Expo mobile alternative
+        "exp://172.15.67.158:19000",  # Expo mobile - new IP
         "*"  # Allow all for development - remove in production
     ]
     
@@ -42,7 +46,8 @@ class Settings(BaseSettings):
     PAYPAL_MODE: str = config("PAYPAL_MODE", default="sandbox")  # sandbox or live
     
     # Platform Settings
-    PLATFORM_FEE_PERCENTAGE: float = config("PLATFORM_FEE_PERCENTAGE", default=5.0, cast=float)
+    PLATFORM_FEE_PERCENTAGE: float = config("PLATFORM_FEE_PERCENTAGE", default=10.0, cast=float)
+    AUTO_RELEASE_DAYS: int = config("AUTO_RELEASE_DAYS", default=14, cast=int)
     
     # OAuth Settings
     GOOGLE_CLIENT_ID: str = config("GOOGLE_CLIENT_ID", default="")
@@ -92,6 +97,11 @@ class Settings(BaseSettings):
     # File Upload Settings
     UPLOAD_DIR: str = config("UPLOAD_DIR", default="./uploads")
     MAX_UPLOAD_SIZE: int = config("MAX_UPLOAD_SIZE", default=10485760, cast=int)  # 10MB
+    
+    # Firebase Settings
+    USE_FIREBASE_EMULATOR: bool = config("USE_FIREBASE_EMULATOR", default=True, cast=bool)
+    FIREBASE_PROJECT_ID: str = config("FIREBASE_PROJECT_ID", default="demo-project")
+    FIREBASE_CREDENTIALS_PATH: str = config("FIREBASE_CREDENTIALS_PATH", default="")
     
     def is_development_environment(self) -> bool:
         """Detect if we're running in development environment"""

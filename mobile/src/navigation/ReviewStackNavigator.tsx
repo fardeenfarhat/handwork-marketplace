@@ -13,14 +13,7 @@ export default function ReviewStackNavigator() {
   return (
     <Stack.Navigator
       screenOptions={{
-        headerShown: true,
-        headerStyle: {
-          backgroundColor: '#007AFF',
-        },
-        headerTintColor: '#fff',
-        headerTitleStyle: {
-          fontWeight: 'bold',
-        },
+        headerShown: false,
         animation: 'slide_from_right',
       }}
     >
@@ -28,7 +21,7 @@ export default function ReviewStackNavigator() {
         name="ReviewSubmission" 
         component={ReviewSubmissionScreen}
         options={{
-          title: 'Leave Review',
+          headerShown: false,
           presentation: 'modal',
         }}
       />
@@ -36,21 +29,21 @@ export default function ReviewStackNavigator() {
         name="ReviewsList" 
         component={ReviewsListScreen}
         options={{
-          title: 'Reviews',
+          headerShown: false,
         }}
       />
       <Stack.Screen 
         name="ReviewDetail" 
         component={ReviewDetailScreen}
         options={{
-          title: 'Review Details',
+          headerShown: false,
         }}
       />
       <Stack.Screen 
         name="ReviewModeration" 
         component={ReviewModerationScreen}
         options={{
-          title: 'Review Moderation',
+          headerShown: false,
           presentation: 'modal',
         }}
       />

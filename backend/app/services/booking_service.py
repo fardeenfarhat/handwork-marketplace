@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_, or_
 from fastapi import HTTPException, status
 from typing import List, Optional
@@ -15,6 +15,7 @@ from app.schemas.bookings import (
 )
 from app.services.notification_service import NotificationService
 from app.services.file_storage import FileStorageService
+from app.services.payment_service import PaymentService
 
 
 class BookingService:
@@ -22,6 +23,7 @@ class BookingService:
         self.db = db
         self.notification_service = NotificationService(db)
         self.file_storage = FileStorageService()
+        self.payment_service = PaymentService(db)
 
     async def create_booking(self, booking_data: BookingCreate, client_user_id: int) -> Booking:
         """Create a new booking from a job application"""
@@ -190,6 +192,19 @@ class BookingService:
             
             # Update job status
             booking.job.status = JobStatus.COMPLETED
+            
+            # Capture payment from escrow
+            try:
+                payment_result = await self.payment_service.capture_payment_for_booking(booking.id)
+                print(f"✅ Payment captured for booking {booking.id}: ${payment_result['amount_captured']}")
+                print(f"   Platform fee: ${payment_result['platform_fee']}")
+                print(f"   Worker earnings: ${payment_result['worker_amount']}")
+            except HTTPException as e:
+                print(f"⚠️  Payment capture failed: {e.detail}")
+                # Don't fail the completion if payment capture fails
+                # The payment can be manually captured later
+            except Exception as e:
+                print(f"⚠️  Unexpected error during payment capture: {str(e)}")
         
         # Handle in progress
         elif status_update.status == BookingStatus.IN_PROGRESS:
@@ -316,14 +331,32 @@ class BookingService:
                 detail="User not found"
             )
         
-        # Base query
-        query = self.db.query(Booking)
+        print(f"🔍 DEBUG: Getting bookings for user {user_id}, role: {user.role}")
+        
+        # Check if user has the required profile
+        if user.role == "client" and not user.client_profile:
+            print(f"❌ DEBUG: Client user {user_id} has no client_profile")
+            return [], 0
+        elif user.role == "worker" and not user.worker_profile:
+            print(f"❌ DEBUG: Worker user {user_id} has no worker_profile")
+            return [], 0
+        
+        # Base query with eager loading of related data
+        query = self.db.query(Booking).options(
+            joinedload(Booking.job),
+            joinedload(Booking.client).joinedload(ClientProfile.user),
+            joinedload(Booking.worker).joinedload(WorkerProfile.user)
+        )
         
         # Filter by user role
         if user.role == "client":
-            query = query.filter(Booking.client_id == user.client_profile.id)
+            client_profile_id = user.client_profile.id
+            print(f"🔍 DEBUG: Filtering by client_id = {client_profile_id}")
+            query = query.filter(Booking.client_id == client_profile_id)
         elif user.role == "worker":
-            query = query.filter(Booking.worker_id == user.worker_profile.id)
+            worker_profile_id = user.worker_profile.id
+            print(f"🔍 DEBUG: Filtering by worker_id = {worker_profile_id}")
+            query = query.filter(Booking.worker_id == worker_profile_id)
         
         # Apply filters
         if filters.status:
@@ -340,10 +373,15 @@ class BookingService:
         
         # Get total count
         total = query.count()
+        print(f"📊 DEBUG: Found {total} bookings after filtering")
         
         # Apply pagination
         offset = (filters.page - 1) * filters.per_page
         bookings = query.offset(offset).limit(filters.per_page).all()
+        
+        print(f"📋 DEBUG: Returning {len(bookings)} bookings for user {user_id}")
+        for booking in bookings:
+            print(f"  📋 Booking ID: {booking.id}, Client: {booking.client_id}, Worker: {booking.worker_id}")
         
         return bookings, total
 

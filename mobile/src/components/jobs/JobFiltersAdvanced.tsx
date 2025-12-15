@@ -10,7 +10,7 @@ import {
   Switch,
   Alert,
 } from 'react-native';
-import { MockIcon as Icon } from '@/components/common/MockIcon';
+import { Ionicons } from '@expo/vector-icons';
 import { JobFilters } from '@/types';
 import { locationService, LocationCoordinates } from '@/services/location';
 
@@ -179,7 +179,7 @@ export const JobFiltersAdvanced: React.FC<JobFiltersAdvancedProps> = ({
             {userRole === 'worker' && (
               <View style={styles.locationToggle}>
                 <View style={styles.locationToggleContent}>
-                  <Icon name="my-location" size={20} color="#2196F3" />
+                  <Ionicons name="location" size={20} color="#2196F3" />
                   <Text style={styles.locationToggleText}>Use my current location</Text>
                 </View>
                 <Switch
@@ -204,7 +204,7 @@ export const JobFiltersAdvanced: React.FC<JobFiltersAdvancedProps> = ({
                 onPress={handleGetCurrentLocation}
                 disabled={locationLoading}
               >
-                <Icon name="location-searching" size={20} color="#2196F3" />
+                <Ionicons name="search" size={20} color="#2196F3" />
                 <Text style={styles.locationButtonText}>
                   {locationLoading ? 'Getting location...' : 'Get Current Location'}
                 </Text>
@@ -214,7 +214,7 @@ export const JobFiltersAdvanced: React.FC<JobFiltersAdvancedProps> = ({
             {/* Location Status */}
             {currentLocation && (
               <View style={styles.locationStatus}>
-                <Icon name="location-on" size={16} color="#4CAF50" />
+                <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
                 <Text style={styles.locationStatusText}>
                   Location: {currentLocation.latitude.toFixed(4)}, {currentLocation.longitude.toFixed(4)}
                 </Text>

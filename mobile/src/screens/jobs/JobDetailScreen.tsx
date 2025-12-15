@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -8,41 +8,98 @@ import {
   Alert,
   Image,
   Linking,
+  Animated,
+  Dimensions,
+  StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
-import { StackNavigationProp } from '@/types/navigation';
-import { useSelector } from 'react-redux';
-import { MockIcon as Icon } from '@/components/common/MockIcon';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation, useRoute, RouteProp, CompositeNavigationProp } from '@react-navigation/native';
+import { StackNavigationProp } from '@react-navigation/stack';
+import { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { useSelector, useDispatch } from 'react-redux';
+import { Ionicons } from '@expo/vector-icons';
+import { ModernCard } from '@/components/ui/ModernCard';
 
-import { Job, JobApplication, JobsStackParamList } from '@/types';
-import { RootState } from '@/store';
+import { Job, JobApplication, JobsStackParamList, Booking, Payment, MainTabParamList, PaymentStackParamList } from '@/types';
+import { RootState, AppDispatch } from '@/store';
 import { apiService } from '@/services/api';
 import { ErrorHandler } from '@/utils/errorHandler';
+import { Colors, Typography, Spacing, BorderRadius, Shadows, Gradients } from '@/styles/DesignSystem';
+import { releasePayment } from '@/store/slices/paymentSlice';
+
+const { height } = Dimensions.get('window');
 
 type JobDetailScreenRouteProp = RouteProp<JobsStackParamList, 'JobDetail'>;
-type JobDetailScreenNavigationProp = StackNavigationProp<JobsStackParamList, 'JobDetail'>;
+type JobDetailScreenNavigationProp = CompositeNavigationProp<
+  StackNavigationProp<JobsStackParamList, 'JobDetail'>,
+  CompositeNavigationProp<
+    BottomTabNavigationProp<MainTabParamList>,
+    StackNavigationProp<PaymentStackParamList>
+  >
+>;
 
 function JobDetailScreen() {
   const navigation = useNavigation<JobDetailScreenNavigationProp>();
   const route = useRoute<JobDetailScreenRouteProp>();
   const { jobId } = route.params;
   const { user } = useSelector((state: RootState) => state.auth);
+  const dispatch = useDispatch<AppDispatch>();
 
   const [job, setJob] = useState<Job | null>(null);
   const [applications, setApplications] = useState<JobApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [hasApplied, setHasApplied] = useState(false);
-
+  const [booking, setBooking] = useState<Booking | null>(null);
+  const [releasingPayment, setReleasingPayment] = useState(false);
   const isWorker = user?.role === 'worker';
   const isClient = user?.role === 'client';
-  const isJobOwner = job?.clientId === user?.id;
+  const isJobOwner = user?.id && job?.clientId && user.id === job.clientId;
+
+  // Animation refs (disabled - set to final values)
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+  const statsCardsAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // Animations disabled for stability
+    // Animated.parallel([
+    //   Animated.timing(fadeAnim, {
+    //     toValue: 1,
+    //     duration: 800,
+    //     useNativeDriver: true,
+    //   }),
+    //   Animated.timing(slideAnim, {
+    //     toValue: 0,
+    //     duration: 600,
+    //     useNativeDriver: true,
+    //   }),
+    //   Animated.timing(scaleAnim, {
+    //     toValue: 1,
+    //     duration: 700,
+    //     useNativeDriver: true,
+    //   }),
+    // ]).start();
+
+    // Delayed stats cards animation
+    // setTimeout(() => {
+    //   Animated.spring(statsCardsAnim, {
+    //     toValue: 1,
+    //     friction: 8,
+    //     tension: 40,
+    //     useNativeDriver: true,
+    //   }).start();
+    // }, 300);
+  }, []);
 
   useEffect(() => {
     fetchJobDetails();
     if (isClient) {
       fetchApplications();
     }
+    fetchBookingDetails();
   }, [jobId]);
 
   const fetchJobDetails = async () => {
@@ -74,8 +131,26 @@ function JobDetailScreen() {
     }
   };
 
+  const fetchBookingDetails = async () => {
+    try {
+      // Fetch bookings for this job to check if there's a completed booking with payment
+      const bookingsResponse = await apiService.getBookings();
+      
+      if (bookingsResponse && Array.isArray(bookingsResponse) && bookingsResponse.length > 0) {
+        // Find the booking for this specific job
+        const jobBooking = bookingsResponse.find((b: Booking) => b.jobId === jobId);
+        if (jobBooking) {
+          setBooking(jobBooking);
+        }
+      }
+    } catch (error) {
+      // Silently fail - booking might not exist yet
+      console.log('No booking found for job:', error);
+    }
+  };
+
   const handleApplyToJob = () => {
-    if (!job) return;
+    if (!job?.id) return;
     navigation.navigate('JobApplication', { jobId: job.id });
   };
 
@@ -87,7 +162,7 @@ function JobDetailScreen() {
 
   const handleGetDirections = () => {
     if (!job?.location) return;
-    const url = `https://maps.google.com/?q=${encodeURIComponent(job.location)}`;
+    const url = `https://maps.google.com/?q=${encodeURIComponent(String(job.location))}`;
     Linking.openURL(url);
   };
 
@@ -114,18 +189,108 @@ function JobDetailScreen() {
     );
   };
 
+  const handleViewClientProfile = async () => {
+    if (!job?.clientId) {
+      Alert.alert('Error', 'Client profile information is not available');
+      return;
+    }
+    
+    navigation.navigate('UserProfileView', { 
+      userId: job.clientId, 
+      userType: 'client' 
+    });
+  };
+
+  const handleCompleteJobAndPay = () => {
+    if (!booking) {
+      Alert.alert('Error', 'No booking found for this job');
+      return;
+    }
+
+    // Navigate to payment screen with job and booking details
+    // Requirements: 1.1, 1.2
+    // @ts-ignore - Cross-stack navigation
+    navigation.navigate('Payments', {
+      screen: 'Payment',
+      params: {
+        bookingId: booking.id,
+        jobTitle: job?.title || 'Job',
+        workerName: booking.workerName,
+        workingHours: 8, // Default - should be collected from user or booking
+        hourlyRate: booking.agreedRate,
+      },
+    });
+  };
+
+  const handleReleasePayment = () => {
+    if (!booking?.payment) {
+      Alert.alert('Error', 'No payment found for this booking');
+      return;
+    }
+
+    // Show confirmation dialog
+    // Requirements: 3.3, 3.4
+    Alert.alert(
+      'Release Payment',
+      `Are you sure you want to release the payment of $${booking.payment.amount.toFixed(2)} to ${booking.workerName}? This action cannot be undone.`,
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Release Payment',
+          style: 'default',
+          onPress: async () => {
+            try {
+              setReleasingPayment(true);
+              await dispatch(releasePayment(booking.payment!.id)).unwrap();
+              
+              Alert.alert(
+                'Success',
+                'Payment has been released successfully!',
+                [
+                  {
+                    text: 'OK',
+                    onPress: () => {
+                      // Refresh booking details to show updated payment status
+                      fetchBookingDetails();
+                    },
+                  },
+                ]
+              );
+            } catch (error: any) {
+              Alert.alert(
+                'Error',
+                error.message || 'Failed to release payment. Please try again.'
+              );
+            } finally {
+              setReleasingPayment(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const formatBudget = (min: number, max: number) => {
-    return `$${min} - $${max}`;
+    if (!min && !max) return 'Budget not specified';
+    return `$${min || 0} - $${max || 0}`;
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+    if (!dateString) return 'Date not specified';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
+    } catch {
+      return 'Invalid date';
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -148,405 +313,957 @@ function JobDetailScreen() {
   if (loading || !job) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Text>Loading job details...</Text>
-        </View>
+        <StatusBar barStyle="light-content" />
+        <LinearGradient
+          colors={['#667EEA', '#764BA2', '#F093FB']}
+          style={styles.loadingGradient}
+        >
+          <View style={styles.loadingContainer}>
+            <Animated.View style={{ opacity: fadeAnim }}>
+              <View style={styles.loadingIconBadge}>
+                <Ionicons name="time-outline" size={32} color={Colors.primary[500]} />
+              </View>
+              <Text style={styles.loadingText}>Loading job details...</Text>
+            </Animated.View>
+          </View>
+        </LinearGradient>
       </SafeAreaView>
     );
   }
 
+  // Create a safe job object to prevent rendering errors
+  const safeJob = {
+    ...job,
+    title: String(job.title || 'No title'),
+    category: String(job.category || 'No category'),
+    description: String(job.description || 'No description'),
+    location: String(job.location || 'No location'),
+    status: String(job.status || 'unknown'),
+    clientName: job.clientName ? String(job.clientName) : 'Unknown client',
+    budgetMin: Number(job.budgetMin) || 0,
+    budgetMax: Number(job.budgetMax) || 0,
+    clientRating: Number(job.clientRating) || 0,
+    applicationsCount: Number(job.applicationsCount) || 0,
+    distance: job.distance ? Number(job.distance) : null,
+  };
+
+  console.log('JobDetail - safeJob:', safeJob);
+
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerContent}>
-            <Text style={styles.title}>{job.title}</Text>
-            <View style={[styles.statusBadge, { backgroundColor: getStatusColor(job.status) }]}>
-              <Text style={styles.statusText}>{job.status.toUpperCase()}</Text>
-            </View>
-          </View>
-          <Text style={styles.category}>{job.category}</Text>
-          <Text style={styles.postedDate}>Posted {formatDate(job.createdAt)}</Text>
-        </View>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      
+      {/* Gradient Background Header */}
+      <LinearGradient
+        colors={['#667EEA', '#764BA2', '#F093FB']}
+        style={styles.gradientBackground}
+      >
+        {/* Decorative Circles */}
+        <View style={[styles.decorativeCircle, styles.circle1]} />
+        <View style={[styles.decorativeCircle, styles.circle2]} />
+        <View style={[styles.decorativeCircle, styles.circle3]} />
 
-        {/* Budget and Location */}
-        <View style={styles.section}>
-          <View style={styles.infoRow}>
-            <Icon name="attach-money" size={20} color="#4CAF50" />
-            <Text style={styles.budget}>{formatBudget(job.budgetMin, job.budgetMax)}</Text>
-          </View>
-          <TouchableOpacity style={styles.infoRow} onPress={handleGetDirections}>
-            <Icon name="location-on" size={20} color="#2196F3" />
-            <Text style={styles.location}>{job.location}</Text>
-            <Icon name="directions" size={16} color="#2196F3" />
-          </TouchableOpacity>
-          <View style={styles.infoRow}>
-            <Icon name="schedule" size={20} color="#FF9800" />
-            <Text style={styles.preferredDate}>Preferred: {formatDate(job.preferredDate)}</Text>
-          </View>
-          {job.distance && (
-            <View style={styles.infoRow}>
-              <Icon name="near-me" size={20} color="#9C27B0" />
-              <Text style={styles.distance}>{job.distance.toFixed(1)} miles away</Text>
+        {/* Header with Back Button */}
+        <SafeAreaView edges={['top']}>
+          <Animated.View 
+            style={[
+              styles.header,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              },
+            ]}
+          >
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+            
+            <View style={styles.headerTitleContainer}>
+              <View style={styles.gradientIconBadge}>
+                <Ionicons name="briefcase" size={24} color={Colors.primary[500]} />
+              </View>
+              <Text style={styles.headerTitle}>Job Details</Text>
             </View>
+
+            <TouchableOpacity style={styles.shareButton}>
+              <Ionicons name="share-social-outline" size={24} color="#fff" />
+            </TouchableOpacity>
+          </Animated.View>
+
+          {/* Stats Cards */}
+          <Animated.View 
+            style={[
+              styles.statsContainer,
+              {
+                opacity: statsCardsAnim,
+                transform: [
+                  { 
+                    scale: statsCardsAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.8, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <View style={styles.statCard}>
+              <View style={[styles.statIconBg, { backgroundColor: 'rgba(76, 175, 80, 0.2)' }]}>
+                <Ionicons name="cash-outline" size={20} color="#4CAF50" />
+              </View>
+              <Text style={styles.statLabel}>Budget</Text>
+              <Text style={styles.statValue}>{formatBudget(safeJob.budgetMin, safeJob.budgetMax)}</Text>
+            </View>
+
+            <View style={styles.statCard}>
+              <View style={[styles.statIconBg, { backgroundColor: 'rgba(33, 150, 243, 0.2)' }]}>
+                <Ionicons name="location-outline" size={20} color="#2196F3" />
+              </View>
+              <Text style={styles.statLabel}>Distance</Text>
+              <Text style={styles.statValue}>
+                {safeJob.distance ? `${safeJob.distance.toFixed(1)}mi` : 'N/A'}
+              </Text>
+            </View>
+
+            <View style={styles.statCard}>
+              <View style={[styles.statIconBg, { backgroundColor: 'rgba(255, 152, 0, 0.2)' }]}>
+                <Ionicons name="people-outline" size={20} color="#FF9800" />
+              </View>
+              <Text style={styles.statLabel}>Applicants</Text>
+              <Text style={styles.statValue}>{safeJob.applicationsCount}</Text>
+            </View>
+          </Animated.View>
+        </SafeAreaView>
+      </LinearGradient>
+
+      {/* Main Content */}
+      <Animated.View 
+        style={[
+          styles.contentCard,
+          {
+            opacity: fadeAnim,
+          },
+        ]}
+      >
+        <ScrollView 
+          style={styles.scrollView} 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContent}
+        >
+          {/* Job Header Section */}
+          <ModernCard variant="elevated" style={styles.jobHeaderCard}>
+            <View style={styles.jobHeaderTop}>
+              <View style={styles.jobTitleContainer}>
+                <Text style={styles.jobTitle}>{safeJob.title}</Text>
+                <View style={[styles.statusBadge, { backgroundColor: getStatusColor(safeJob.status) }]}>
+                  <Text style={styles.statusText}>{safeJob.status.toUpperCase()}</Text>
+                </View>
+              </View>
+            </View>
+            <View style={styles.jobMetadata}>
+              <View style={styles.categoryContainer}>
+                <Ionicons name="briefcase" size={16} color={Colors.primary[500]} />
+                <Text style={styles.category}>{safeJob.category}</Text>
+              </View>
+              <View style={styles.dateContainer}>
+                <Ionicons name="time-outline" size={16} color={Colors.neutral[600]} />
+                <Text style={styles.postedDate}>Posted {formatDate(job.createdAt || '')}</Text>
+              </View>
+            </View>
+          </ModernCard>
+
+          {/* Location & Date Row */}
+          <View style={styles.detailRow}>
+            <ModernCard variant="elevated" style={styles.detailCardHalf}>
+              <TouchableOpacity onPress={handleGetDirections} activeOpacity={0.7}>
+                <LinearGradient
+                  colors={['rgba(33, 150, 243, 0.08)', 'rgba(33, 150, 243, 0.02)']}
+                  style={styles.cardGradientBg}
+                >
+                  <View style={styles.detailCardHeader}>
+                    <View style={styles.iconBadge}>
+                      <Ionicons name="location" size={20} color="#2196F3" />
+                    </View>
+                    <Text style={styles.detailCardTitle}>Location</Text>
+                  </View>
+                  <View style={{ paddingRight: Spacing[2] }}>
+                    <Text style={styles.detailCardValue} numberOfLines={3}>{safeJob.location}</Text>
+                  </View>
+                  <View style={styles.directionsIndicator}>
+                    <Ionicons name="navigate" size={14} color="#2196F3" />
+                    <Text style={styles.directionsText}>Get Directions</Text>
+                  </View>
+                </LinearGradient>
+              </TouchableOpacity>
+            </ModernCard>
+
+            <ModernCard variant="elevated" style={styles.detailCardHalf}>
+              <LinearGradient
+                colors={['rgba(255, 152, 0, 0.08)', 'rgba(255, 152, 0, 0.02)']}
+                style={styles.cardGradientBg}
+              >
+                <View style={styles.detailCardHeader}>
+                  <View style={styles.iconBadge}>
+                    <Ionicons name="calendar-outline" size={20} color="#FF9800" />
+                  </View>
+                  <Text style={styles.detailCardTitle}>Preferred Date</Text>
+                </View>
+                <View style={{ paddingRight: Spacing[2] }}>
+                  <Text style={styles.detailCardValue}>
+                    {formatDate(job.preferredDate || '')}
+                  </Text>
+                </View>
+              </LinearGradient>
+            </ModernCard>
+          </View>
+
+          {/* Description Section */}
+          <ModernCard variant="elevated" style={styles.descriptionCard}>
+            <Text style={styles.sectionTitle}>Job Description</Text>
+            <Text style={styles.description}>{safeJob.description}</Text>
+          </ModernCard>
+
+          {/* Requirements Section */}
+          {job?.requirements && Array.isArray(job.requirements) && job.requirements.length > 0 && (
+            <ModernCard variant="elevated" style={styles.requirementsCard}>
+              <Text style={styles.sectionTitle}>Requirements</Text>
+              <View style={styles.requirementsList}>
+                {job.requirements.map((requirement, index) => (
+                  <View key={index} style={styles.requirementItem}>
+                    <View style={styles.requirementBullet}>
+                      <Ionicons name="checkmark-circle" size={20} color="#4CAF50" />
+                    </View>
+                    <Text style={styles.requirementText}>{String(requirement || '')}</Text>
+                  </View>
+                ))}
+              </View>
+            </ModernCard>
           )}
-        </View>
 
-        {/* Description */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Description</Text>
-          <Text style={styles.description}>{job.description}</Text>
-        </View>
-
-        {/* Requirements */}
-        {job.requirements && job.requirements.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Requirements</Text>
-            {job.requirements.map((requirement, index) => (
-              <View key={index} style={styles.requirementItem}>
-                <Text style={styles.requirementBullet}>•</Text>
-                <Text style={styles.requirementText}>{requirement}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Client Information */}
-        {job.clientName && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Posted by</Text>
-            <View style={styles.clientInfo}>
-              <View style={styles.clientDetails}>
-                <Text style={styles.clientName}>{job.clientName}</Text>
-                {job.clientRating && (
-                  <View style={styles.ratingContainer}>
-                    <Icon name="star" size={16} color="#FF9800" />
-                    <Text style={styles.rating}>{job.clientRating.toFixed(1)}</Text>
-                  </View>
-                )}
-              </View>
-              {isWorker && (
-                <TouchableOpacity style={styles.contactButton} onPress={handleContactClient}>
-                  <Icon name="message" size={16} color="#2196F3" />
-                  <Text style={styles.contactButtonText}>Contact</Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </View>
-        )}
-
-        {/* Applications (for clients) */}
-        {isClient && isJobOwner && applications.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Applications ({applications.length})
-            </Text>
-            {applications.map((application) => (
-              <View key={application.id} style={styles.applicationCard}>
-                <View style={styles.applicationHeader}>
-                  <Text style={styles.workerName}>{application.workerName}</Text>
-                  <View style={styles.workerRating}>
-                    <Icon name="star" size={14} color="#FF9800" />
-                    <Text style={styles.ratingText}>{application.workerRating.toFixed(1)}</Text>
-                  </View>
-                </View>
-                <Text style={styles.applicationMessage}>{application.message}</Text>
-                <View style={styles.applicationDetails}>
-                  <Text style={styles.proposedRate}>
-                    Proposed Rate: ${application.proposedRate}
-                  </Text>
-                  <Text style={styles.startDate}>
-                    Start Date: {formatDate(application.proposedStartDate)}
-                  </Text>
-                </View>
-                {application.status === 'pending' && (
-                  <TouchableOpacity
-                    style={styles.hireButton}
-                    onPress={() => handleHireWorker(application)}
+          {/* Client Information Section */}
+          {safeJob.clientName && (
+            <ModernCard variant="elevated" style={styles.clientCard}>
+              <View style={styles.clientCardHeader}>
+                <Text style={styles.sectionTitle}>Posted by</Text>
+                {!isJobOwner && job?.clientId && (
+                  <TouchableOpacity 
+                    style={styles.viewClientProfileButton} 
+                    onPress={handleViewClientProfile}
                   >
-                    <Text style={styles.hireButtonText}>Hire Worker</Text>
+                    <LinearGradient
+                      colors={Gradients.primaryBlue}
+                      style={styles.viewProfileGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                    >
+                      <Text style={styles.viewProfileButtonText}>View Profile</Text>
+                    </LinearGradient>
                   </TouchableOpacity>
                 )}
-                {application.status === 'accepted' && (
-                  <View style={styles.acceptedBadge}>
-                    <Text style={styles.acceptedText}>HIRED</Text>
-                  </View>
+              </View>
+              <View style={styles.clientInfo}>
+                <View style={styles.clientAvatar}>
+                  <Ionicons name="person" size={24} color={Colors.primary[500]} />
+                </View>
+                <View style={styles.clientDetails}>
+                  <Text style={styles.clientName}>{safeJob.clientName}</Text>
+                  {safeJob.clientRating > 0 && (
+                    <View style={styles.ratingContainer}>
+                      <Ionicons name="star" size={16} color="#FFD700" />
+                      <Text style={styles.rating}>{safeJob.clientRating.toFixed(1)}</Text>
+                      <Text style={styles.ratingLabel}>rating</Text>
+                    </View>
+                  )}
+                </View>
+                {isWorker && (
+                  <TouchableOpacity style={styles.contactButton} onPress={handleContactClient}>
+                    <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
+                  </TouchableOpacity>
                 )}
               </View>
-            ))}
-          </View>
-        )}
-      </ScrollView>
+            </ModernCard>
+          )}
+
+          {/* Applications (for clients) */}
+          {isClient && isJobOwner && applications.length > 0 && (
+            <ModernCard variant="elevated" style={styles.applicationsSection}>
+              <Text style={styles.sectionTitle}>
+                Applications ({applications.length})
+              </Text>
+              {applications.map((application) => (
+                <View key={application.id} style={styles.applicationCard}>
+                  <View style={styles.applicationHeader}>
+                    <Text style={styles.workerName}>{String(application.workerName || 'Unknown Worker')}</Text>
+                    <View style={styles.workerRating}>
+                      <Ionicons name="star" size={14} color="#FF9800" />
+                      <Text style={styles.ratingText}>{(Number(application.workerRating) || 0).toFixed(1)}</Text>
+                    </View>
+                  </View>
+                  <Text style={styles.applicationMessage}>{String(application.message || 'No message')}</Text>
+                  <View style={styles.applicationDetails}>
+                    <Text style={styles.proposedRate}>
+                      Proposed Rate: ${String(application.proposedRate || '0')}
+                    </Text>
+                    <Text style={styles.startDate}>
+                      Start Date: {formatDate(application.proposedStartDate)}
+                    </Text>
+                  </View>
+                  {application.status === 'pending' && (
+                    <TouchableOpacity
+                      style={styles.hireButtonWrapper}
+                      onPress={() => handleHireWorker(application)}
+                    >
+                      <LinearGradient
+                        colors={Gradients.primaryBlue}
+                        style={styles.hireButton}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                      >
+                        <Ionicons name="person-add" size={16} color="#fff" />
+                        <Text style={styles.hireButtonText}>Hire Worker</Text>
+                      </LinearGradient>
+                    </TouchableOpacity>
+                  )}
+                  {application.status === 'accepted' && (
+                    <View style={styles.acceptedBadge}>
+                      <Ionicons name="checkmark-circle" size={16} color="#fff" />
+                      <Text style={styles.acceptedText}>HIRED</Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </ModernCard>
+          )}
+        </ScrollView>
+      </Animated.View>
 
       {/* Action Buttons */}
-      {isWorker && job.status === 'open' && (
-        <View style={styles.actionContainer}>
+      {isWorker && safeJob.status === 'open' && (
+        <SafeAreaView edges={['bottom']} style={styles.actionContainer}>
           {hasApplied ? (
             <View style={styles.appliedContainer}>
-              <Icon name="check-circle" size={20} color="#4CAF50" />
+              <Ionicons name="checkmark-circle" size={24} color="#4CAF50" />
               <Text style={styles.appliedText}>Application Submitted</Text>
             </View>
           ) : (
-            <TouchableOpacity style={styles.applyButton} onPress={handleApplyToJob}>
-              <Text style={styles.applyButtonText}>Apply for Job</Text>
+            <TouchableOpacity style={styles.applyButtonWrapper} onPress={handleApplyToJob}>
+              <LinearGradient
+                colors={Gradients.primaryBlue}
+                style={styles.applyButton}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Ionicons name="paper-plane" size={20} color="#fff" />
+                <Text style={styles.applyButtonText}>Apply for Job</Text>
+              </LinearGradient>
             </TouchableOpacity>
           )}
-        </View>
+        </SafeAreaView>
       )}
-    </SafeAreaView>
+
+      {/* Complete Job & Pay Button - Requirements: 1.1, 1.2 */}
+      {isClient && isJobOwner && safeJob.status === 'completed' && booking && !booking.payment && (
+        <SafeAreaView edges={['bottom']} style={styles.actionContainer}>
+          <TouchableOpacity style={styles.applyButtonWrapper} onPress={handleCompleteJobAndPay}>
+            <LinearGradient
+              colors={['#4CAF50', '#45A049']}
+              style={styles.applyButton}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              <Ionicons name="card" size={20} color="#fff" />
+              <Text style={styles.applyButtonText}>Complete Job & Pay</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </SafeAreaView>
+      )}
+
+      {/* Release Payment Button - Requirements: 3.3, 3.4 */}
+      {isClient && isJobOwner && safeJob.status === 'completed' && booking?.payment && booking.payment.status === 'held' && (
+        <SafeAreaView edges={['bottom']} style={styles.actionContainer}>
+          <TouchableOpacity 
+            style={styles.applyButtonWrapper} 
+            onPress={handleReleasePayment}
+            disabled={releasingPayment}
+          >
+            <LinearGradient
+              colors={['#FF9800', '#F57C00']}
+              style={styles.applyButton}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+            >
+              {releasingPayment ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Ionicons name="checkmark-done" size={20} color="#fff" />
+                  <Text style={styles.applyButtonText}>Release Payment</Text>
+                </>
+              )}
+            </LinearGradient>
+          </TouchableOpacity>
+          <View style={styles.paymentInfoContainer}>
+            <Ionicons name="information-circle-outline" size={16} color={Colors.neutral[600]} />
+            <Text style={styles.paymentInfoText}>
+              Payment of ${booking.payment.amount.toFixed(2)} is held in escrow
+            </Text>
+          </View>
+        </SafeAreaView>
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // Container & Base
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: Colors.neutral[50],
+  },
+  
+  // Loading State
+  loadingGradient: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  loadingIconBadge: {
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.full,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing[4],
+    ...Shadows.lg,
+  },
+  loadingText: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: '#fff',
+    textAlign: 'center',
+  },
+
+  // Gradient Background Header
+  gradientBackground: {
+    height: height * 0.35,
+    paddingBottom: Spacing[6],
+  },
+  decorativeCircle: {
+    position: 'absolute',
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  circle1: {
+    width: 200,
+    height: 200,
+    top: -50,
+    right: -50,
+  },
+  circle2: {
+    width: 150,
+    height: 150,
+    top: 100,
+    left: -30,
+  },
+  circle3: {
+    width: 120,
+    height: 120,
+    top: 60,
+    right: 40,
+  },
+
+  // Header
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[2],
+    paddingBottom: Spacing[4],
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  gradientIconBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing[2],
+    ...Shadows.lg,
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: '#fff',
+  },
+  shareButton: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Stats Dashboard
+  statsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing[4],
+    marginTop: Spacing[2],
+    gap: Spacing[3],
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderRadius: BorderRadius.xl,
+    padding: Spacing[3],
+    alignItems: 'center',
+    backdropFilter: 'blur(10px)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  statIconBg: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing[2],
+  },
+  statLabel: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.medium as any,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginBottom: Spacing[1],
+    textAlign: 'center',
+  },
+  statValue: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: '#fff',
+    textAlign: 'center',
+  },
+
+  // Content Card
+  contentCard: {
+    flex: 1,
+    backgroundColor: Colors.neutral[50],
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginTop: -Spacing[6],
+    overflow: 'hidden',
+  },
   scrollView: {
     flex: 1,
   },
-  header: {
-    backgroundColor: '#fff',
-    padding: 16,
-    marginBottom: 8,
+  scrollContent: {
+    paddingTop: Spacing[4],
+    paddingHorizontal: Spacing[4],
+    paddingBottom: Spacing[2],
   },
-  headerContent: {
+
+  // Job Header Card
+  jobHeaderCard: {
+    marginBottom: Spacing[4],
+  },
+  jobHeaderTop: {
+    marginBottom: Spacing[3],
+  },
+  jobTitleContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    justifyContent: 'space-between',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+  jobTitle: {
     flex: 1,
-    marginRight: 12,
+    fontSize: Typography.fontSize['3xl'],
+    fontWeight: Typography.fontWeight.bold as any,
+    color: Colors.neutral[900],
+    marginRight: Spacing[3],
+    lineHeight: 36,
+    letterSpacing: -0.8,
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[2],
+    borderRadius: BorderRadius.full,
+    ...Shadows.base,
   },
   statusText: {
     color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.bold as any,
+    letterSpacing: 1,
   },
-  category: {
-    fontSize: 16,
-    color: '#666',
-    textTransform: 'capitalize',
-    marginBottom: 4,
+  jobMetadata: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
-  postedDate: {
-    fontSize: 12,
-    color: '#999',
-  },
-  section: {
-    backgroundColor: '#fff',
-    padding: 16,
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 12,
-  },
-  infoRow: {
+  categoryContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: Spacing[1],
+    backgroundColor: 'rgba(0, 122, 255, 0.08)',
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[1],
+    borderRadius: BorderRadius.full,
   },
-  budget: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-    marginLeft: 8,
+  category: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: Colors.primary[500],
+    textTransform: 'capitalize',
   },
-  location: {
-    fontSize: 16,
-    color: '#2196F3',
-    marginLeft: 8,
+  dateContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[1],
+  },
+  postedDate: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    fontWeight: Typography.fontWeight.medium as any,
+  },
+
+  // Detail Cards
+  detailRow: {
+    flexDirection: 'row',
+    gap: Spacing[3],
+    marginBottom: Spacing[4],
+  },
+  detailCardHalf: {
     flex: 1,
+    overflow: 'hidden',
   },
-  preferredDate: {
-    fontSize: 16,
-    color: '#333',
-    marginLeft: 8,
+  cardGradientBg: {
+    padding: Spacing[4],
+    borderRadius: BorderRadius.lg,
   },
-  distance: {
-    fontSize: 16,
-    color: '#9C27B0',
-    marginLeft: 8,
+  iconBadge: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing[2],
+    ...Shadows.base,
+  },
+  detailCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing[3],
+  },
+  detailCardTitle: {
+    flex: 1,
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: Colors.neutral[600],
+    paddingRight: Spacing[2],
+    flexWrap: 'wrap',
+  },
+  detailCardValue: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: Colors.neutral[900],
+    lineHeight: 22,
+    flexWrap: 'wrap',
+    paddingRight: Spacing[1],
+  },
+  directionsIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[1],
+    marginTop: Spacing[2],
+    paddingTop: Spacing[2],
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(33, 150, 243, 0.1)',
+  },
+  directionsText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: '#2196F3',
+  },
+
+  // Description Card
+  descriptionCard: {
+    marginBottom: Spacing[4],
+  },
+  sectionTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: Colors.neutral[900],
+    marginBottom: Spacing[3],
+    letterSpacing: -0.5,
   },
   description: {
-    fontSize: 16,
-    color: '#333',
-    lineHeight: 24,
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[700],
+    lineHeight: 26,
+    letterSpacing: 0.2,
+  },
+
+  // Requirements Card
+  requirementsCard: {
+    marginBottom: Spacing[4],
+  },
+  requirementsList: {
+    gap: Spacing[2],
   },
   requirementItem: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginBottom: 8,
+    gap: Spacing[3],
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[3],
+    backgroundColor: 'rgba(76, 175, 80, 0.05)',
+    borderRadius: BorderRadius.lg,
+    borderLeftWidth: 3,
+    borderLeftColor: '#4CAF50',
   },
   requirementBullet: {
-    fontSize: 16,
-    color: '#666',
-    marginRight: 8,
-    marginTop: 2,
+    marginTop: 0,
   },
   requirementText: {
-    fontSize: 16,
-    color: '#333',
     flex: 1,
-    lineHeight: 22,
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[700],
+    lineHeight: 24,
   },
-  clientInfo: {
+
+  // Client Card
+  clientCard: {
+    marginBottom: Spacing[4],
+  },
+  clientCardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: Spacing[3],
+  },
+  viewClientProfileButton: {
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
+    ...Shadows.lg,
+  },
+  viewProfileGradient: {
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[2],
+  },
+  viewProfileButtonText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: '#fff',
+  },
+  clientInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  clientAvatar: {
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing[3],
+    borderWidth: 2,
+    borderColor: 'rgba(0, 122, 255, 0.2)',
   },
   clientDetails: {
     flex: 1,
   },
   clientName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: Colors.neutral[900],
+    marginBottom: Spacing[1],
   },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing[1],
   },
   rating: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 4,
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: Colors.neutral[700],
+  },
+  ratingLabel: {
+    fontSize: Typography.fontSize.xs,
+    color: Colors.neutral[600],
+    textTransform: 'uppercase',
   },
   contactButton: {
-    flexDirection: 'row',
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    backgroundColor: '#2196F3',
     alignItems: 'center',
-    backgroundColor: '#f0f8ff',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#2196F3',
+    justifyContent: 'center',
+    ...Shadows.lg,
   },
-  contactButtonText: {
-    color: '#2196F3',
-    fontSize: 14,
-    fontWeight: '500',
-    marginLeft: 4,
+
+  // Applications Section
+  applicationsSection: {
+    marginBottom: Spacing[4],
   },
   applicationCard: {
-    backgroundColor: '#f8f9fa',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 12,
+    backgroundColor: Colors.neutral[50],
+    padding: Spacing[4],
+    borderRadius: BorderRadius.xl,
+    marginTop: Spacing[3],
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: Colors.neutral[200],
+    ...Shadows.base,
   },
   applicationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: Spacing[2],
   },
   workerName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: Colors.neutral[900],
   },
   workerRating: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: Spacing[1],
   },
   ratingText: {
-    fontSize: 14,
-    color: '#666',
-    marginLeft: 2,
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: Colors.neutral[700],
   },
   applicationMessage: {
-    fontSize: 14,
-    color: '#333',
-    lineHeight: 20,
-    marginBottom: 8,
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[700],
+    lineHeight: 22,
+    marginBottom: Spacing[3],
   },
   applicationDetails: {
-    marginBottom: 12,
+    marginBottom: Spacing[3],
+    gap: Spacing[1],
   },
   proposedRate: {
-    fontSize: 14,
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.bold as any,
     color: '#4CAF50',
-    fontWeight: 'bold',
-    marginBottom: 2,
   },
   startDate: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+  },
+  hireButtonWrapper: {
+    borderRadius: BorderRadius.full,
+    overflow: 'hidden',
+    ...Shadows.lg,
   },
   hireButton: {
-    backgroundColor: '#2196F3',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing[2],
+    paddingVertical: Spacing[3],
+    paddingHorizontal: Spacing[4],
   },
   hireButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.bold as any,
     color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
   },
   acceptedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
     backgroundColor: '#4CAF50',
-    paddingVertical: 4,
-    paddingHorizontal: 12,
-    borderRadius: 12,
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[3],
+    borderRadius: BorderRadius.full,
     alignSelf: 'flex-start',
   },
   acceptedText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.bold as any,
     color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
   },
+
+  // Action Container
   actionContainer: {
     backgroundColor: '#fff',
-    padding: 16,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
+    paddingBottom: Spacing[4],
     borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+    borderTopColor: Colors.neutral[200],
+    ...Shadows.lg,
+  },
+  applyButtonWrapper: {
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    ...Shadows.lg,
   },
   applyButton: {
-    backgroundColor: '#2196F3',
-    paddingVertical: 14,
-    borderRadius: 8,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing[2],
+    paddingVertical: Spacing[4],
   },
   applyButtonText: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold as any,
     color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
   appliedContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 14,
+    gap: Spacing[2],
+    paddingVertical: Spacing[4],
   },
   appliedText: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold as any,
     color: '#4CAF50',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
+  },
+  paymentInfoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing[2],
+    marginTop: Spacing[2],
+    paddingHorizontal: Spacing[4],
+  },
+  paymentInfoText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    fontWeight: Typography.fontWeight.medium as any,
   },
 });
 

@@ -16,6 +16,7 @@ interface ProfileViewerProps {
   userType: 'worker' | 'client';
   isOwnProfile?: boolean;
   onEdit?: () => void;
+  reviewCount?: number;
 }
 
 const { width } = Dimensions.get('window');
@@ -26,6 +27,7 @@ export default function ProfileViewer({
   userType,
   isOwnProfile = false,
   onEdit,
+  reviewCount = 0,
 }: ProfileViewerProps) {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
@@ -99,7 +101,7 @@ export default function ProfileViewer({
                 {renderStars(workerProfile.rating)}
               </View>
               <Text style={styles.ratingText}>
-                {workerProfile.rating.toFixed(1)}
+                {workerProfile.rating.toFixed(1)} ({reviewCount} reviews)
               </Text>
             </View>
             <Text style={styles.statLabel}>Rating</Text>
@@ -217,7 +219,7 @@ export default function ProfileViewer({
                 {renderStars(clientProfile.rating)}
               </View>
               <Text style={styles.ratingText}>
-                {clientProfile.rating.toFixed(1)}
+                {clientProfile.rating.toFixed(1)} ({reviewCount} reviews)
               </Text>
             </View>
             <Text style={styles.statLabel}>Rating</Text>
@@ -288,84 +290,109 @@ export default function ProfileViewer({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#f8f9fa',
   },
   scrollView: {
     flex: 1,
+    paddingTop: 12,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginBottom: 16,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   profileTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#1a1a1a',
   },
   editButton: {
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#f0f8ff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
     gap: 6,
   },
   editText: {
-    fontSize: 16,
+    fontSize: 14,
     color: '#007AFF',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   section: {
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginBottom: 16,
     padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 12,
-    color: '#333',
+    fontSize: 20,
+    fontWeight: '700',
+    marginBottom: 16,
+    color: '#1a1a1a',
   },
   bio: {
     fontSize: 16,
-    color: '#666',
-    lineHeight: 22,
+    color: '#444',
+    lineHeight: 24,
   },
   companyName: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1a1a1a',
+    marginBottom: 4,
   },
   statsContainer: {
     flexDirection: 'row',
     justifyContent: 'space-around',
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
   },
   statItem: {
     alignItems: 'center',
   },
   statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#1a1a1a',
   },
   statLabel: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#666',
-    marginTop: 4,
+    marginTop: 6,
+    fontWeight: '500',
   },
   ratingContainer: {
     alignItems: 'center',
-    gap: 4,
+    marginBottom: 6,
   },
   stars: {
     flexDirection: 'row',
-    gap: 2,
+    marginBottom: 6,
   },
   ratingText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: 15,
+    color: '#444',
+    fontWeight: '500',
   },
   verificationContainer: {
     alignItems: 'flex-start',

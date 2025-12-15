@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,12 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { WorkerProfile } from '@/types';
-import Button from '@/components/common/Button';
+import { ModernButton } from '@/components/ui/ModernButton';
+import { ModernCard } from '@/components/ui/ModernCard';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { Colors, Typography, Spacing, BorderRadius, Shadows, Gradients } from '@/styles/DesignSystem';
 
 interface WorkerProfileFormProps {
   profile?: Partial<WorkerProfile>;
@@ -60,6 +63,19 @@ export default function WorkerProfileForm({
 
   const [showSkillsModal, setShowSkillsModal] = useState(false);
   const [showCategoriesModal, setShowCategoriesModal] = useState(false);
+
+  // Update form data when profile changes
+  useEffect(() => {
+    if (profile) {
+      setFormData({
+        bio: profile.bio || '',
+        hourlyRate: profile.hourlyRate?.toString() || '',
+        location: profile.location || '',
+        skills: profile.skills || [],
+        serviceCategories: profile.serviceCategories || [],
+      });
+    }
+  }, [profile]);
 
   const handleSave = async () => {
     if (!formData.bio.trim()) {
@@ -219,11 +235,12 @@ export default function WorkerProfileForm({
         )}
       </View>
 
-      <Button
+      <ModernButton
         title="Save Profile"
         onPress={handleSave}
         style={styles.saveButton}
         disabled={isLoading}
+        loading={isLoading}
       />
 
       {/* Skills Selection Modal */}
@@ -308,100 +325,123 @@ export default function WorkerProfileForm({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    paddingTop: Spacing[3],
+  },
+  scrollContent: {
+    padding: Spacing[4],
+  },
+  formCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.xl,
+    padding: 0,
+    marginBottom: Spacing[4],
+    ...Shadows.lg,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  section: {
-    padding: 20,
+  cardSection: {
+    paddingHorizontal: Spacing[5],
+    paddingVertical: Spacing[4],
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: Colors.neutral[100],
+  },
+  section: {
+    paddingHorizontal: Spacing[5],
+    paddingVertical: Spacing[4],
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 12,
-    color: '#333',
+    fontSize: Typography.fontSize.lg,
+    fontWeight: '700' as const,
+    marginBottom: Spacing[3],
+    color: Colors.neutral[900],
   },
   input: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#fff',
+    borderColor: Colors.neutral[300],
+    borderRadius: BorderRadius.lg,
+    padding: Spacing[4],
+    fontSize: Typography.fontSize.base,
+    backgroundColor: Colors.neutral[50],
+    color: Colors.neutral[900],
   },
   bioInput: {
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    backgroundColor: '#fff',
-    minHeight: 100,
+    borderColor: Colors.neutral[300],
+    borderRadius: BorderRadius.lg,
+    padding: Spacing[4],
+    fontSize: Typography.fontSize.base,
+    backgroundColor: Colors.neutral[50],
+    color: Colors.neutral[900],
+    minHeight: 120,
+    textAlignVertical: 'top',
   },
   rateContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    backgroundColor: '#fff',
+    borderColor: Colors.neutral[300],
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.neutral[50],
   },
   currencySymbol: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    paddingLeft: 12,
+    fontSize: Typography.fontSize.xl,
+    fontWeight: '700' as const,
+    color: Colors.primary[500],
+    paddingLeft: Spacing[4],
   },
   rateInput: {
     flex: 1,
-    padding: 12,
-    fontSize: 16,
+    padding: Spacing[4],
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[900],
   },
   rateLabel: {
-    fontSize: 16,
-    color: '#666',
-    paddingRight: 12,
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[600],
+    paddingRight: Spacing[4],
   },
   selectorButton: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: '#fff',
+    borderColor: Colors.neutral[300],
+    borderRadius: BorderRadius.lg,
+    padding: Spacing[4],
+    backgroundColor: Colors.neutral[50],
   },
   selectorText: {
-    fontSize: 16,
-    color: '#333',
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[700],
   },
   selectedItems: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    marginTop: 12,
-    gap: 8,
+    marginTop: Spacing[3],
+    gap: Spacing[2],
   },
   selectedItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0f8ff',
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    gap: 6,
+    backgroundColor: Colors.primary[50],
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[2],
+    gap: Spacing[2],
+    borderWidth: 1,
+    borderColor: Colors.primary[200],
   },
   selectedItemText: {
-    fontSize: 14,
-    color: '#007AFF',
+    fontSize: Typography.fontSize.sm,
+    color: Colors.primary[700],
+    fontWeight: '600' as const,
   },
   saveButton: {
-    margin: 20,
+    marginHorizontal: Spacing[4],
+    marginBottom: Spacing[5],
   },
   modalOverlay: {
     position: 'absolute',
@@ -409,29 +449,30 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   modal: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    margin: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.xl,
+    margin: Spacing[5],
     maxHeight: '80%',
     width: '90%',
+    ...Shadows.xl,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: Spacing[5],
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: Colors.neutral[200],
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: Typography.fontSize.xl,
+    fontWeight: '700' as const,
+    color: Colors.neutral[900],
   },
   modalContent: {
     maxHeight: 400,
@@ -440,19 +481,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    padding: Spacing[4],
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: Colors.neutral[200],
   },
   modalItemSelected: {
-    backgroundColor: '#f0f8ff',
+    backgroundColor: Colors.primary[50],
   },
   modalItemText: {
-    fontSize: 16,
-    color: '#333',
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[700],
   },
   modalItemTextSelected: {
-    color: '#007AFF',
-    fontWeight: '500',
+    color: Colors.primary[600],
+    fontWeight: '600' as const,
   },
 });

@@ -68,6 +68,9 @@ class BookingDetailResponse(BookingResponse):
     client_name: str
     worker_name: str
     worker_rating: float
+    client_user_id: int
+    worker_user_id: int
+    has_user_review: bool = False  # Whether current user has reviewed this booking
 
 
 class BookingTimelineEntry(BaseModel):
@@ -83,7 +86,7 @@ class BookingTimeline(BaseModel):
 
 
 class BookingListResponse(BaseModel):
-    bookings: List[BookingResponse]
+    bookings: List[BookingDetailResponse]
     total: int
     page: int
     per_page: int

@@ -428,6 +428,94 @@ class ProfileService:
             is_profile_complete=completion_status.is_complete,
             missing_fields=completion_status.missing_fields
         )
+
+    async def upload_portfolio_image(self, user: User, file: UploadFile) -> dict:
+        """Upload portfolio image for worker"""
+        if user.role != UserRole.WORKER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only workers can upload portfolio images"
+            )
+        
+        # Upload file
+        result = await file_storage.upload_portfolio_image(user.id, file)
+        
+        # Get worker profile
+        profile = self.db.query(WorkerProfile).filter(
+            WorkerProfile.user_id == user.id
+        ).first()
+        
+        if not profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Worker profile not found"
+            )
+        
+        # Update portfolio images in profile
+        portfolio_images = profile.portfolio_images or []
+        portfolio_images.append(result['url'])
+        profile.portfolio_images = portfolio_images
+        
+        self.db.commit()
+        self.db.refresh(profile)
+        
+        return result
+
+    async def upload_kyc_document(self, user: User, document_type: str, file: UploadFile) -> dict:
+        """Upload KYC document for worker"""
+        if user.role != UserRole.WORKER:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only workers can upload KYC documents"
+            )
+        
+        # Validate document type
+        valid_types = ['id_front', 'id_back', 'selfie', 'address_proof']
+        if document_type not in valid_types:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid document type. Must be one of: {', '.join(valid_types)}"
+            )
+        
+        # Upload file
+        result = await file_storage.upload_kyc_document(user.id, document_type, file)
+        
+        # Get worker profile
+        profile = self.db.query(WorkerProfile).filter(
+            WorkerProfile.user_id == user.id
+        ).first()
+        
+        if not profile:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Worker profile not found"
+            )
+        
+        # Update KYC documents in profile
+        kyc_documents = profile.kyc_documents or []
+        
+        # Remove any existing document of the same type
+        kyc_documents = [doc for doc in kyc_documents if doc.get('document_type') != document_type]
+        
+        # Add new document
+        kyc_documents.append({
+            'document_type': document_type,
+            'url': result['url'],
+            'filename': result['filename'],
+            'uploaded_at': datetime.utcnow().isoformat()
+        })
+        
+        profile.kyc_documents = kyc_documents
+        
+        # Update KYC status to pending if not already approved
+        if profile.kyc_status != KYCStatus.APPROVED:
+            profile.kyc_status = KYCStatus.PENDING
+        
+        self.db.commit()
+        self.db.refresh(profile)
+        
+        return result
+
 def get_profile_service(db: Session) -> ProfileService:
     """Dependency to get profile service instance"""
     return ProfileService(db)

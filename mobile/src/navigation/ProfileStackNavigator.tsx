@@ -7,6 +7,7 @@ import {
   ClientProfileEditScreen,
   KYCUploadScreen,
   PortfolioScreen,
+  UserProfileViewScreen,
 } from '@/screens/profile';
 
 const Stack = createNativeStackNavigator<ProfileStackParamList>();
@@ -59,6 +60,13 @@ export default function ProfileStackNavigator() {
         options={{
           title: 'Portfolio',
           headerBackTitle: 'Back',
+        }}
+      />
+      <Stack.Screen
+        name="UserProfileView"
+        component={UserProfileViewScreen}
+        options={{
+          headerShown: false,
         }}
       />
     </Stack.Navigator>

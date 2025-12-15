@@ -12,6 +12,13 @@ export class ErrorHandler {
   static createAuthError(error: any, operation?: string): AuthError {
     const timestamp = Date.now();
     
+    console.log('🔍 ErrorHandler analyzing error:', {
+      message: error?.message,
+      status: error?.status || error?.response?.status,
+      responseData: error?.response?.data,
+      type: typeof error,
+    });
+    
     // Handle timeout errors
     if (error?.message?.includes('timeout') || error?.name === 'AbortError') {
       return {
@@ -22,10 +29,29 @@ export class ErrorHandler {
       };
     }
 
-    // Handle network errors
-    if (error?.message?.toLowerCase().includes('network') || 
+    // Get status code from either error.status or error.response.status
+    const statusCode = error?.status || error?.response?.status;
+    
+    // Handle authentication errors (401/403) - BEFORE network check
+    if (statusCode === 401 || statusCode === 403) {
+      const serverMessage = error?.response?.data?.message || error?.response?.data?.detail;
+      return {
+        message: operation === 'login' 
+          ? (serverMessage === 'Incorrect email or password' 
+              ? 'Invalid email or password. Please check your credentials and try again.'
+              : 'Invalid email or password. Please try again.')
+          : 'Authentication failed. Please check your credentials.',
+        type: 'auth',
+        isRetryable: false,
+        statusCode: statusCode,
+        timestamp,
+      };
+    }
+
+    // Handle network errors (only if no status code)
+    if (!statusCode && (error?.message?.toLowerCase().includes('network') || 
         error?.message?.toLowerCase().includes('connection') ||
-        !navigator.onLine) {
+        !navigator.onLine)) {
       return {
         message: API_CONFIG.ERROR_MESSAGES.NETWORK,
         type: 'network',
@@ -35,73 +61,59 @@ export class ErrorHandler {
     }
 
     // Handle validation errors
-    if (error?.response?.status === 400 || error?.response?.status === 422) {
+    if (statusCode === 400 || statusCode === 422) {
+      const serverMessage = error?.response?.data?.message || error?.response?.data?.detail;
       return {
-        message: error?.response?.data?.message || 'Please check your input and try again.',
+        message: serverMessage || 'Please check your input and try again.',
         type: 'validation',
         isRetryable: false,
-        statusCode: error.response.status,
-        timestamp,
-      };
-    }
-
-    // Handle authentication errors
-    if (error?.response?.status === 401 || error?.response?.status === 403) {
-      return {
-        message: operation === 'login' 
-          ? 'Invalid email or password. Please try again.'
-          : 'Authentication failed. Please check your credentials.',
-        type: 'auth',
-        isRetryable: false,
-        statusCode: error.response.status,
+        statusCode: statusCode,
         timestamp,
       };
     }
 
     // Handle server errors
-    if (error?.response?.status >= 500) {
+    if (statusCode >= 500) {
       return {
         message: 'Server error. Please try again later.',
         type: 'server',
         isRetryable: true,
-        statusCode: error.response.status,
+        statusCode: statusCode,
         timestamp,
       };
     }
 
     // Handle specific error messages
-    if (error?.response?.data?.message) {
-      const message = error.response.data.message;
+    const serverMessage = error?.response?.data?.message || error?.response?.data?.detail;
+    if (serverMessage) {
       let type: AuthError['type'] = 'unknown';
       let isRetryable = false;
 
-      if (message.toLowerCase().includes('email already exists')) {
+        if (serverMessage.toLowerCase().includes('email already exists')) {
         type = 'validation';
         return {
           message: 'An account with this email already exists. Please sign in instead.',
           type,
           isRetryable,
-          statusCode: error.response?.status,
+          statusCode: statusCode,
           timestamp,
         };
-      }
-
-      if (message.toLowerCase().includes('user not found')) {
+      }      if (serverMessage.toLowerCase().includes('user not found')) {
         type = 'auth';
         return {
           message: 'No account found with this email address.',
           type,
           isRetryable,
-          statusCode: error.response?.status,
+          statusCode: statusCode,
           timestamp,
         };
       }
 
       return {
-        message,
+        message: serverMessage,
         type,
-        isRetryable: error?.response?.status >= 500,
-        statusCode: error.response?.status,
+        isRetryable: statusCode >= 500,
+        statusCode: statusCode,
         timestamp,
       };
     }

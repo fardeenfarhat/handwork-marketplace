@@ -8,7 +8,7 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation, useRoute } from '@react-navigation/native';
+import { useNavigation, useRoute, useIsFocused } from '@react-navigation/native';
 import { RouteProp } from '@react-navigation/native';
 import { PaymentStackParamList, Job, WorkerProfile, PaymentMethod } from '@/types';
 import { Button, LoadingSpinner } from '@/components/common';
@@ -22,6 +22,7 @@ type RouteProps = RouteProp<PaymentStackParamList, 'BookingConfirmation'>;
 const BookingConfirmationScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProps>();
+  const isFocused = useIsFocused();
   const { jobId, workerId, agreedRate } = route.params;
 
   const [job, setJob] = useState<Job | null>(null);
@@ -31,6 +32,11 @@ const BookingConfirmationScreen: React.FC = () => {
   const [startDate, setStartDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
+
+  // Don't render if not focused
+  if (!isFocused) {
+    return null;
+  }
 
   useEffect(() => {
     loadData();
@@ -127,9 +133,11 @@ const BookingConfirmationScreen: React.FC = () => {
            method.type === 'paypal' ? 'PayPal' : 'Bank Account'}
         </Text>
         <Text style={styles.paymentMethodDetails}>
-          {method.type === 'card' && `**** **** **** ${method.last4}`}
+          {method.type === 'card' && method.last4 && `**** **** **** ${method.last4}`}
+          {method.type === 'card' && !method.last4 && 'Card on file'}
           {method.type === 'paypal' && method.email}
-          {method.type === 'bank_account' && `${method.bankName} ****${method.last4}`}
+          {method.type === 'bank_account' && method.bankName && method.last4 && `${method.bankName} ****${method.last4}`}
+          {method.type === 'bank_account' && (!method.bankName || !method.last4) && 'Bank account on file'}
         </Text>
       </View>
       <View style={[
@@ -213,7 +221,7 @@ const BookingConfirmationScreen: React.FC = () => {
             </View>
           ) : (
             <View style={styles.paymentMethods}>
-              {paymentMethods.map(renderPaymentMethod)}
+              {paymentMethods.filter(m => m && m.id).map(renderPaymentMethod)}
             </View>
           )}
         </View>

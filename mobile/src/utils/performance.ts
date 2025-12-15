@@ -208,22 +208,23 @@ export class StorageOptimizer {
   static async getCache<T>(key: string): Promise<T | null> {
     try {
       const cached = await AsyncStorage.getItem(`${this.CACHE_PREFIX}${key}`);
-      if (!cached) return null;
+      if (!cached || cached === 'undefined') return null;
 
-      const cacheData = JSON.parse(cached);
-      const now = Date.now();
-      
-      if (now - cacheData.timestamp > cacheData.ttl) {
-        // Cache expired
-        await this.removeCache(key);
+      try {
+        const cacheData = JSON.parse(cached);
+        const now = Date.now();
+        
+        if (now - cacheData.timestamp > cacheData.ttl) {
+          // Cache expired
+          await this.removeCache(key);
+          return null;
+        }
+
+        return cacheData.data;
+      } catch (error) {
+        console.warn('Failed to get cache:', error);
         return null;
       }
-
-      return cacheData.data;
-    } catch (error) {
-      console.warn('Failed to get cache:', error);
-      return null;
-    }
   }
 
   static async removeCache(key: string): Promise<void> {
@@ -242,9 +243,14 @@ export class StorageOptimizer {
 
       for (const key of cacheKeys) {
         const cached = await AsyncStorage.getItem(key);
-        if (cached) {
-          const cacheData = JSON.parse(cached);
-          if (now - cacheData.timestamp > cacheData.ttl) {
+        if (cached && cached !== 'undefined') {
+          try {
+            const cacheData = JSON.parse(cached);
+            if (now - cacheData.timestamp > cacheData.ttl) {
+              await AsyncStorage.removeItem(key);
+            }
+          } catch (error) {
+            console.warn('Failed to parse cache data, removing:', key);
             await AsyncStorage.removeItem(key);
           }
         }

@@ -38,14 +38,27 @@ export const JobMap: React.FC<JobMapProps> = ({
 }) => {
   const mapRef = useRef<MapView>(null);
   const { currentLocation, getCurrentLocation, hasPermission, requestPermission } = useLocation();
+  const [mapReady, setMapReady] = useState(false);
   const [region, setRegion] = useState<Region>(
     initialRegion || {
-      latitude: 37.7749,
+      latitude: 37.7749, // Default to San Francisco
       longitude: -122.4194,
       latitudeDelta: LATITUDE_DELTA,
       longitudeDelta: LONGITUDE_DELTA,
     }
   );
+
+  // Failsafe to prevent infinite loading
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (!mapReady) {
+        console.log('Map ready timeout - forcing map ready state');
+        setMapReady(true);
+      }
+    }, 5000); // 5 seconds timeout
+
+    return () => clearTimeout(timeout);
+  }, [mapReady]);
 
   useEffect(() => {
     if (showUserLocation && !hasPermission) {
@@ -164,6 +177,15 @@ export const JobMap: React.FC<JobMapProps> = ({
     return `$${min} - $${max}`;
   };
 
+  // Debug logging
+  console.log('JobMap render:', {
+    jobsCount: jobs.length,
+    jobsWithLocation: jobs.filter(job => job.latitude && job.longitude).length,
+    currentLocation,
+    hasPermission,
+    region
+  });
+
   return (
     <View style={[styles.container, style]}>
       <MapView
@@ -177,6 +199,10 @@ export const JobMap: React.FC<JobMapProps> = ({
         showsCompass={true}
         showsScale={true}
         loadingEnabled={true}
+        onMapReady={() => {
+          console.log('Map is ready');
+          setMapReady(true);
+        }}
       >
         {jobs
           .filter(job => job.latitude && job.longitude)
@@ -213,7 +239,24 @@ export const JobMap: React.FC<JobMapProps> = ({
           ))}
       </MapView>
 
-      {/* Map Controls */}
+      {/* Loading Overlay */}
+      {!mapReady && (
+        <View style={styles.loadingOverlay}>
+          <Text style={styles.loadingText}>Loading map...</Text>
+        </View>
+      )}
+
+      {/* No Jobs Overlay */}
+      {mapReady && jobs.filter(job => job.latitude && job.longitude).length === 0 && (
+        <View style={styles.noJobsOverlay}>
+          <Text style={styles.noJobsTitle}>No jobs to display on map</Text>
+          <Text style={styles.noJobsText}>
+            Jobs need location coordinates to appear on the map
+          </Text>
+        </View>
+      )}
+
+      {/* Controls */}
       <View style={styles.controls}>
         {showUserLocation && (
           <TouchableOpacity
@@ -340,6 +383,48 @@ const styles = StyleSheet.create({
   calloutDistance: {
     fontSize: 11,
     color: '#2196F3',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '500',
+  },
+  noJobsOverlay: {
+    position: 'absolute',
+    top: '40%',
+    left: 20,
+    right: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    padding: 20,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  noJobsTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 8,
+  },
+  noJobsText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });
 

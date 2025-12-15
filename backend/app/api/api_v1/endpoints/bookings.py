@@ -59,8 +59,42 @@ async def get_user_bookings(
     booking_service = BookingService(db)
     bookings, total = await booking_service.get_user_bookings(current_user.id, filters)
     
+    # Create detailed responses for all bookings
+    detailed_bookings = []
+    for booking in bookings:
+        # Check if current user has already reviewed this booking
+        from app.db.models import Review
+        has_user_review = db.query(Review).filter(
+            Review.booking_id == booking.id,
+            Review.reviewer_id == current_user.id
+        ).first() is not None
+        
+        detailed_booking = BookingDetailResponse(
+            id=booking.id,
+            job_id=booking.job_id,
+            worker_id=booking.worker_id,
+            client_id=booking.client_id,
+            start_date=booking.start_date,
+            end_date=booking.end_date,
+            agreed_rate=booking.agreed_rate,
+            status=booking.status,
+            completion_notes=booking.completion_notes,
+            completion_photos=booking.completion_photos,
+            created_at=booking.created_at,
+            job_title=booking.job.title,
+            job_description=booking.job.description,
+            job_category=booking.job.category,
+            client_name=f"{booking.client.user.first_name} {booking.client.user.last_name}",
+            worker_name=f"{booking.worker.user.first_name} {booking.worker.user.last_name}",
+            worker_rating=booking.worker.rating,
+            client_user_id=booking.client.user_id,
+            worker_user_id=booking.worker.user_id,
+            has_user_review=has_user_review
+        )
+        detailed_bookings.append(detailed_booking)
+    
     return BookingListResponse(
-        bookings=[BookingResponse.from_orm(booking) for booking in bookings],
+        bookings=detailed_bookings,
         total=total,
         page=page,
         per_page=per_page
@@ -77,6 +111,13 @@ async def get_booking(
     
     booking_service = BookingService(db)
     booking = await booking_service.get_booking(booking_id, current_user.id)
+    
+    # Check if current user has already reviewed this booking
+    from app.db.models import Review
+    has_user_review = db.query(Review).filter(
+        Review.booking_id == booking.id,
+        Review.reviewer_id == current_user.id
+    ).first() is not None
     
     # Create detailed response
     return BookingDetailResponse(
@@ -96,7 +137,10 @@ async def get_booking(
         job_category=booking.job.category,
         client_name=f"{booking.client.user.first_name} {booking.client.user.last_name}",
         worker_name=f"{booking.worker.user.first_name} {booking.worker.user.last_name}",
-        worker_rating=booking.worker.rating
+        worker_rating=booking.worker.rating,
+        client_user_id=booking.client.user_id,
+        worker_user_id=booking.worker.user_id,
+        has_user_review=has_user_review
     )
 
 

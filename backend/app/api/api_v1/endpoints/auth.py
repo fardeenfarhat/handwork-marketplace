@@ -13,7 +13,7 @@ from app.db.models import User, VerificationToken, OAuthAccount, TokenType, User
 from app.schemas.auth import (
     UserRegistration, UserLogin, OAuthLogin, AuthResponse, Token, UserResponse,
     EmailVerificationRequest, PhoneVerificationRequest, VerifyTokenRequest,
-    PasswordResetRequest, PasswordResetConfirm, RefreshTokenRequest,
+    VerifyEmailCodeRequest, PasswordResetRequest, PasswordResetConfirm, RefreshTokenRequest,
     MessageResponse, VerificationStatusResponse
 )
 from app.core.security import (
@@ -642,6 +642,38 @@ async def verify_email(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired verification token"
+        )
+    
+    # Update user and token
+    user = token.user
+    user.email_verified = True
+    # Set is_verified to True when email is verified (phone verification is optional)
+    user.is_verified = True
+    token.is_used = True
+    
+    db.commit()
+    
+    return MessageResponse(message="Email verified successfully")
+
+@router.post("/verify-email-code", response_model=MessageResponse)
+async def verify_email_code(
+    request: VerifyEmailCodeRequest,
+    db: Session = Depends(get_db)
+):
+    """Verify email using 6-digit code"""
+    
+    # Find valid token with the 6-digit code
+    token = db.query(VerificationToken).filter(
+        VerificationToken.token == request.code,
+        VerificationToken.token_type == TokenType.EMAIL_VERIFICATION,
+        VerificationToken.is_used == False,
+        VerificationToken.expires_at > datetime.utcnow()
+    ).first()
+    
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired verification code"
         )
     
     # Update user and token

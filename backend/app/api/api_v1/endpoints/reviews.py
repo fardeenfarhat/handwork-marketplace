@@ -21,6 +21,9 @@ def create_review(
 ):
     """Create a new review for a completed booking"""
     try:
+        print(f"🌟 DEBUG API: Received review data - booking_id: {review_data.booking_id}, rating: {review_data.rating}, comment: {review_data.comment}")
+        print(f"🌟 DEBUG API: User ID: {current_user.id}")
+        
         review_service = ReviewService(db)
         review = review_service.create_review(review_data, current_user.id)
         
@@ -38,9 +41,14 @@ def create_review(
             reviewer_role=current_user.role.value
         )
     except ValueError as e:
+        print(f"❌ DEBUG API: ValueError in create_review: {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
-        raise HTTPException(status_code=500, detail="Failed to create review")
+        print(f"❌ DEBUG API: Exception in create_review: {str(e)}")
+        print(f"❌ DEBUG API: Exception type: {type(e)}")
+        import traceback
+        print(f"❌ DEBUG API: Traceback: {traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Failed to create review: {str(e)}")
 
 @router.get("/", response_model=ReviewListResponse)
 def get_reviews(
@@ -75,6 +83,8 @@ def get_reviews(
         for review in reviews:
             # Get reviewer info
             reviewer = db.query(User).filter(User.id == review.reviewer_id).first()
+            # Get reviewee info
+            reviewee = db.query(User).filter(User.id == review.reviewee_id).first()
             # Get job title from booking
             job_title = None
             if review.booking and review.booking.job:
@@ -91,6 +101,7 @@ def get_reviews(
                 created_at=review.created_at,
                 reviewer_name=f"{reviewer.first_name} {reviewer.last_name}" if reviewer else None,
                 reviewer_role=reviewer.role.value if reviewer else None,
+                reviewee_name=f"{reviewee.first_name} {reviewee.last_name}" if reviewee else None,
                 job_title=job_title
             ))
         

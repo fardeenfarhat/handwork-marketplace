@@ -109,6 +109,8 @@ class PaymentOverview(BaseModel):
     client_name: str
     worker_name: str
     job_title: str
+    payout_status: Optional[str] = None
+    payout_id: Optional[int] = None
 
 class PaymentDetail(BaseModel):
     id: int
@@ -196,11 +198,16 @@ class ReviewAction(BaseModel):
     action: str = Field(..., description="Action to perform: approve, reject, flag")
     reason: Optional[str] = Field(None, description="Reason for the action")
 
+class KYCDocumentItem(BaseModel):
+    document_type: str
+    url: str
+    uploaded_at: Optional[str] = None
+
 class KYCDocument(BaseModel):
     id: int
     worker_name: str
     status: KYCStatus
-    documents: List[str]
+    documents: List[KYCDocumentItem]
     submitted_at: datetime
 
 class KYCAction(BaseModel):

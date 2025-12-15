@@ -1,17 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   Alert,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useSelector } from 'react-redux';
-import { RootState } from '@/store';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { useSelector, useDispatch } from 'react-redux';
+import { RootState, AppDispatch } from '@/store';
+import { refreshUserProfile } from '@/store/slices/authSlice';
 import { ClientProfile } from '@/types';
 import { ClientProfileForm } from '@/components/profile';
 import apiService from '@/services/api';
+import { Colors, Gradients, Typography, Spacing, BorderRadius } from '@/styles/DesignSystem';
 
 export default function ClientProfileEditScreen() {
+  const dispatch = useDispatch<AppDispatch>();
   const { user } = useSelector((state: RootState) => state.auth);
   const [profile, setProfile] = useState<Partial<ClientProfile>>({});
   const [isLoading, setIsLoading] = useState(false);
@@ -43,6 +50,10 @@ export default function ClientProfileEditScreen() {
       const updatedProfile = await apiService.updateClientProfile(profileData);
       
       setProfile(updatedProfile);
+      
+      // Refresh user data in Redux store
+      dispatch(refreshUserProfile());
+      
       Alert.alert('Success', 'Profile updated successfully');
     } catch (error) {
       console.error('Error updating client profile:', error);
@@ -54,19 +65,75 @@ export default function ClientProfileEditScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      
+      {/* Gradient Header */}
+      <LinearGradient
+        colors={Gradients.primaryOrange}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.headerGradient}>
+        <SafeAreaView edges={['top']}>
+          <View style={styles.headerContent}>
+            <View style={styles.headerTop}>
+              <View style={styles.iconContainer}>
+                <Ionicons name="briefcase-outline" size={28} color="#FFFFFF" />
+              </View>
+              <View style={styles.headerTextContainer}>
+                <Text style={styles.headerTitle}>Client Profile</Text>
+                <Text style={styles.headerSubtitle}>Build trust with service providers</Text>
+              </View>
+            </View>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+
       <ClientProfileForm
         profile={profile}
         onSave={handleSaveProfile}
         isLoading={isLoading}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: '#F5F7FA',
+  },
+  headerGradient: {
+    paddingBottom: Spacing[6],
+  },
+  headerContent: {
+    paddingHorizontal: Spacing[5],
+    paddingTop: Spacing[4],
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[3],
+  },
+  iconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize['2xl'],
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+    marginBottom: Spacing[1],
+  },
+  headerSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    color: 'rgba(255, 255, 255, 0.95)',
   },
 });

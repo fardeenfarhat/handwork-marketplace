@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { apiService } from '../../services/apiService';
+import { API_CONFIG } from '../../config/api';
 
 interface Review {
   id: number;
@@ -11,11 +12,17 @@ interface Review {
   created_at: string;
 }
 
+interface KYCDocumentItem {
+  document_type: string;
+  url: string;
+  uploaded_at?: string;
+}
+
 interface KYCDocument {
   id: number;
   worker_name: string;
-  document_type: string;
   status: string;
+  documents: KYCDocumentItem[];
   submitted_at: string;
 }
 
@@ -26,6 +33,10 @@ const ContentModeration: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [pagination, setPagination] = useState({ page: 1, size: 20, total: 0, pages: 0 });
+  const [selectedWorker, setSelectedWorker] = useState<KYCDocument | null>(null);
+  const [showModal, setShowModal] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<{url: string, type: string} | null>(null);
+  const [showDocumentViewer, setShowDocumentViewer] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'reviews') {
@@ -42,6 +53,7 @@ const ContentModeration: React.FC = () => {
         page: pagination.page,
         size: pagination.size,
       });
+      console.log('📋 DEBUG: Loaded reviews:', response.items.map((r: { id: any; rating: any; }) => ({ id: r.id, rating: r.rating })));
       setReviews(response.items);
       setPagination(prev => ({ ...prev, total: response.total, pages: response.pages }));
     } catch (err: any) {
@@ -80,9 +92,31 @@ const ContentModeration: React.FC = () => {
     try {
       await apiService.processKYC(workerProfileId, action);
       loadKYCDocuments();
+      setShowModal(false);
+      setSelectedWorker(null);
     } catch (err: any) {
       setError(`Failed to ${action} KYC document`);
     }
+  };
+
+  const openDocumentsModal = (worker: KYCDocument) => {
+    setSelectedWorker(worker);
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedWorker(null);
+  };
+
+  const openDocumentViewer = (url: string, type: string) => {
+    setSelectedDocument({ url, type });
+    setShowDocumentViewer(true);
+  };
+
+  const closeDocumentViewer = () => {
+    setShowDocumentViewer(false);
+    setSelectedDocument(null);
   };
 
   const formatDate = (dateString: string) => {
@@ -90,10 +124,12 @@ const ContentModeration: React.FC = () => {
   };
 
   const renderStars = (rating: number) => {
+    console.log('🌟 DEBUG: Rating =', rating, typeof rating);
     return Array.from({ length: 5 }, (_, i) => (
       <i
         key={i}
-        className={`fas fa-star ${i < rating ? 'text-warning' : 'text-muted'}`}
+        className={`fas fa-star`}
+        style={{ color: i < rating ? '#ffc107' : '#dee2e6' }}
       ></i>
     ));
   };
@@ -115,19 +151,24 @@ const ContentModeration: React.FC = () => {
 
   return (
     <div className="content-section active">
-      {/* Tab Navigation */}
       <div className="section-header">
-        <div className="filters">
+        <h1 className="section-title">Content Moderation</h1>
+        <p className="section-subtitle">Review and moderate platform content</p>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="filters-section">
+        <div className="filters-actions">
           <button
             onClick={() => setActiveTab('reviews')}
-            className={`btn ${activeTab === 'reviews' ? 'btn-primary' : 'btn-outline'}`}
+            className={`btn ${activeTab === 'reviews' ? 'active' : ''}`}
           >
             <i className="fas fa-star"></i>
-            Reviews
+            Reviews Moderation
           </button>
           <button
             onClick={() => setActiveTab('kyc')}
-            className={`btn ${activeTab === 'kyc' ? 'btn-primary' : 'btn-outline'}`}
+            className={`btn ${activeTab === 'kyc' ? 'active' : ''}`}
           >
             <i className="fas fa-id-card"></i>
             KYC Documents
@@ -145,7 +186,7 @@ const ContentModeration: React.FC = () => {
       ) : (
         <>
           {activeTab === 'reviews' ? (
-            <div className="table-container">
+            <div className="data-table-container">
               <table className="data-table">
                 <thead>
                   <tr>
@@ -170,19 +211,20 @@ const ContentModeration: React.FC = () => {
                       <td>{getStatusBadge(review.status)}</td>
                       <td>{formatDate(review.created_at)}</td>
                       <td>
-                        <button
-                          onClick={() => moderateReview(review.id, 'approve')}
-                          className="btn btn-success"
-                          style={{ marginRight: '8px' }}
-                        >
-                          <i className="fas fa-check"></i>
-                        </button>
-                        <button
-                          onClick={() => moderateReview(review.id, 'reject')}
-                          className="btn btn-danger"
-                        >
-                          <i className="fas fa-times"></i>
-                        </button>
+                        <div className="action-buttons">
+                          <button
+                            onClick={() => moderateReview(review.id, 'approve')}
+                            className="action-btn view"
+                          >
+                            <i className="fas fa-check"></i>
+                          </button>
+                          <button
+                            onClick={() => moderateReview(review.id, 'reject')}
+                            className="action-btn delete"
+                          >
+                            <i className="fas fa-times"></i>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -190,13 +232,13 @@ const ContentModeration: React.FC = () => {
               </table>
             </div>
           ) : (
-            <div className="table-container">
+            <div className="data-table-container">
               <table className="data-table">
                 <thead>
                   <tr>
                     <th>ID</th>
                     <th>Worker</th>
-                    <th>Document Type</th>
+                    <th>Documents</th>
                     <th>Status</th>
                     <th>Submitted</th>
                     <th>Actions</th>
@@ -207,23 +249,31 @@ const ContentModeration: React.FC = () => {
                     <tr key={doc.id}>
                       <td>{doc.id}</td>
                       <td>{doc.worker_name}</td>
-                      <td>{doc.document_type}</td>
+                      <td>
+                        <button
+                          onClick={() => openDocumentsModal(doc)}
+                          className="btn btn-info btn-sm"
+                        >
+                          <i className="fas fa-eye"></i> View Documents ({doc.documents.length})
+                        </button>
+                      </td>
                       <td>{getStatusBadge(doc.status)}</td>
                       <td>{formatDate(doc.submitted_at)}</td>
                       <td>
-                        <button
-                          onClick={() => processKYC(doc.id, 'approve')}
-                          className="btn btn-success"
-                          style={{ marginRight: '8px' }}
-                        >
-                          <i className="fas fa-check"></i>
-                        </button>
-                        <button
-                          onClick={() => processKYC(doc.id, 'reject')}
-                          className="btn btn-danger"
-                        >
-                          <i className="fas fa-times"></i>
-                        </button>
+                        <div className="action-buttons">
+                          <button
+                            onClick={() => processKYC(doc.id, 'approve')}
+                            className="action-btn view"
+                          >
+                            <i className="fas fa-check"></i>
+                          </button>
+                          <button
+                            onClick={() => processKYC(doc.id, 'reject')}
+                            className="action-btn delete"
+                          >
+                            <i className="fas fa-times"></i>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -232,6 +282,162 @@ const ContentModeration: React.FC = () => {
             </div>
           )}
         </>
+      )}
+
+      {/* Document Review Modal */}
+      {showModal && selectedWorker && (
+        <div className="modal-overlay" onClick={closeModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>KYC Documents - {selectedWorker.worker_name}</h3>
+              <button className="close-btn" onClick={closeModal}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="modal-body">
+              <div className="document-grid">
+                {['id_front', 'id_back', 'selfie', 'address_proof'].map((docType) => {
+                  const doc = selectedWorker.documents.find(d => d.document_type === docType);
+                  const labels = {
+                    id_front: 'ID Front',
+                    id_back: 'ID Back', 
+                    selfie: 'Selfie',
+                    address_proof: 'Address Proof'
+                  };
+                  
+                  return (
+                    <div key={docType} className="document-item">
+                      <h4>{labels[docType as keyof typeof labels]}</h4>
+                      {doc ? (
+                        <div className="document-preview">
+                          <img 
+                            src={`${API_CONFIG.BASE_URL.replace('/api/v1', '')}${doc.url}`}
+                            alt={labels[docType as keyof typeof labels]}
+                            className="document-image"
+                            onClick={() => openDocumentViewer(doc.url, docType)}
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              const fallback = target.nextElementSibling as HTMLElement;
+                              target.style.display = 'none';
+                              if (fallback) {
+                                fallback.style.display = 'block';
+                              }
+                            }}
+                          />
+                          <div className="document-fallback" style={{display: 'none'}}>
+                            <i className="fas fa-file-alt"></i>
+                            <p>Document available</p>
+                            <button 
+                              onClick={() => openDocumentViewer(doc.url, docType)}
+                              className="btn btn-primary btn-sm"
+                            >
+                              Open Document
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="no-document-placeholder">
+                          <i className="fas fa-file-slash"></i>
+                          <p>Not uploaded</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <div className="worker-info">
+                <p><strong>Status:</strong> {getStatusBadge(selectedWorker.status)}</p>
+                <p><strong>Submitted:</strong> {formatDate(selectedWorker.submitted_at)}</p>
+              </div>
+              <div className="action-buttons">
+                <button
+                  onClick={() => processKYC(selectedWorker.id, 'approve')}
+                  className="btn btn-success"
+                  style={{ marginRight: '8px' }}
+                >
+                  <i className="fas fa-check"></i> Approve
+                </button>
+                <button
+                  onClick={() => processKYC(selectedWorker.id, 'reject')}
+                  className="btn btn-danger"
+                  style={{ marginRight: '8px' }}
+                >
+                  <i className="fas fa-times"></i> Reject
+                </button>
+                <button
+                  onClick={closeModal}
+                  className="btn btn-secondary"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Viewer Overlay */}
+      {showDocumentViewer && selectedDocument && (
+        <div className="document-viewer-overlay" onClick={closeDocumentViewer}>
+          <div className="document-viewer-content" onClick={(e) => e.stopPropagation()}>
+            <div className="document-viewer-header">
+              <h3>
+                {selectedDocument.type.replace('_', ' ').toUpperCase()} - {selectedWorker?.worker_name}
+              </h3>
+              <div className="document-viewer-controls">
+                <a 
+                  href={`${API_CONFIG.BASE_URL.replace('/api/v1', '')}${selectedDocument.url}`}
+                  download
+                  className="btn btn-outline-primary btn-sm"
+                  title="Download"
+                >
+                  <i className="fas fa-download"></i>
+                </a>
+                <a 
+                  href={`${API_CONFIG.BASE_URL.replace('/api/v1', '')}${selectedDocument.url}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-outline-primary btn-sm"
+                  title="Open in new tab"
+                >
+                  <i className="fas fa-external-link-alt"></i>
+                </a>
+                <button className="close-btn" onClick={closeDocumentViewer} title="Close">
+                  <i className="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+            <div className="document-viewer-body">
+              <img 
+                src={`${API_CONFIG.BASE_URL.replace('/api/v1', '')}${selectedDocument.url}`}
+                alt={selectedDocument.type}
+                className="document-full-image"
+                onError={(e) => {
+                  const target = e.target as HTMLImageElement;
+                  const fallback = target.nextElementSibling as HTMLElement;
+                  target.style.display = 'none';
+                  if (fallback) {
+                    fallback.style.display = 'flex';
+                  }
+                }}
+              />
+              <div className="document-full-fallback" style={{display: 'none'}}>
+                <i className="fas fa-file-alt"></i>
+                <p>Unable to preview this document type</p>
+                <a 
+                  href={`http://192.168.18.19:8000${selectedDocument.url}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-primary"
+                >
+                  Open in New Tab
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

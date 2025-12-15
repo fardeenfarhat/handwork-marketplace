@@ -7,20 +7,24 @@ ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarEle
 
 interface PlatformMetrics {
   total_users: number;
-  active_jobs: number;
-  total_revenue: number;
-  average_rating: number;
   total_workers: number;
   total_clients: number;
+  active_users_30d: number;
+  total_jobs: number;
+  active_jobs: number;
   completed_jobs: number;
-  pending_payments: number;
+  total_payments: number;
+  platform_revenue: number;
+  average_job_value: number;
+  user_growth_rate: number;
+  job_completion_rate: number;
 }
 
 interface JobCategoryStats {
   category: string;
   job_count: number;
-  total_revenue: number;
-  avg_rating: number;
+  avg_budget: number;
+  completed_count: number;
 }
 
 const Overview: React.FC = () => {
@@ -82,12 +86,12 @@ const Overview: React.FC = () => {
     ],
   };
 
-  const revenueChartData = {
+  const budgetChartData = {
     labels: categoryStats.map(stat => stat.category.replace('_', ' ').toUpperCase()),
     datasets: [
       {
-        label: 'Revenue by Category',
-        data: categoryStats.map(stat => stat.total_revenue),
+        label: 'Average Budget by Category',
+        data: categoryStats.map(stat => stat.avg_budget),
         backgroundColor: 'rgba(54, 162, 235, 0.6)',
         borderColor: 'rgba(54, 162, 235, 1)',
         borderWidth: 1,
@@ -146,6 +150,11 @@ const Overview: React.FC = () => {
 
   return (
     <div className="content-section active">
+      <div className="section-header">
+        <h1 className="section-title">Dashboard Overview</h1>
+        <p className="section-subtitle">Platform metrics and performance insights</p>
+      </div>
+
       {/* Metrics Grid */}
       <div className="metrics-grid">
         <div className="metric-card">
@@ -171,17 +180,17 @@ const Overview: React.FC = () => {
             <i className="fas fa-dollar-sign"></i>
           </div>
           <div className="metric-content">
-            <h3>{formatCurrency(metrics?.total_revenue || 0)}</h3>
-            <p>Total Revenue</p>
+            <h3>{formatCurrency(metrics?.platform_revenue || 0)}</h3>
+            <p>Platform Revenue</p>
           </div>
         </div>
         <div className="metric-card">
           <div className="metric-icon">
-            <i className="fas fa-star"></i>
+            <i className="fas fa-money-bill-wave"></i>
           </div>
           <div className="metric-content">
-            <h3>{metrics?.average_rating?.toFixed(1) || '0.0'}</h3>
-            <p>Average Rating</p>
+            <h3>{formatCurrency(metrics?.total_payments || 0)}</h3>
+            <p>Total Payments</p>
           </div>
         </div>
       </div>
@@ -217,11 +226,11 @@ const Overview: React.FC = () => {
         </div>
         <div className="metric-card">
           <div className="metric-icon">
-            <i className="fas fa-clock"></i>
+            <i className="fas fa-user-clock"></i>
           </div>
           <div className="metric-content">
-            <h3>{metrics?.pending_payments || 0}</h3>
-            <p>Pending Payments</p>
+            <h3>{metrics?.active_users_30d || 0}</h3>
+            <p>Active Users (30d)</p>
           </div>
         </div>
       </div>
@@ -235,9 +244,9 @@ const Overview: React.FC = () => {
           </div>
         </div>
         <div className="chart-container">
-          <h3>Revenue by Category</h3>
+          <h3>Average Budget by Category</h3>
           <div style={{ height: '300px' }}>
-            <Bar data={revenueChartData} options={barChartOptions} />
+            <Bar data={budgetChartData} options={barChartOptions} />
           </div>
         </div>
       </div>

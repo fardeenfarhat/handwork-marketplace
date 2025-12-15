@@ -7,20 +7,24 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend,
 
 interface PlatformMetrics {
   total_users: number;
-  active_jobs: number;
-  total_revenue: number;
-  average_rating: number;
   total_workers: number;
   total_clients: number;
+  active_users_30d: number;
+  total_jobs: number;
+  active_jobs: number;
   completed_jobs: number;
-  pending_payments: number;
+  total_payments: number;
+  platform_revenue: number;
+  average_job_value: number;
+  user_growth_rate: number;
+  job_completion_rate: number;
 }
 
 interface JobCategoryStats {
   category: string;
   job_count: number;
-  total_revenue: number;
-  avg_rating: number;
+  avg_budget: number;
+  completed_count: number;
 }
 
 const Analytics: React.FC = () => {
@@ -58,7 +62,7 @@ const Analytics: React.FC = () => {
     datasets: [
       {
         label: 'Jobs by Category',
-        data: categoryStats.map(stat => stat.job_count),
+        data: categoryStats.map(stat => stat.job_count || 0),
         backgroundColor: 'rgba(54, 162, 235, 0.6)',
         borderColor: 'rgba(54, 162, 235, 1)',
         borderWidth: 1,
@@ -66,11 +70,11 @@ const Analytics: React.FC = () => {
     ],
   };
 
-  const revenueChartData = {
+  const budgetChartData = {
     labels: categoryStats.map(stat => stat.category.replace('_', ' ').toUpperCase()),
     datasets: [
       {
-        data: categoryStats.map(stat => stat.total_revenue),
+        data: categoryStats.map(stat => stat.avg_budget || 0),
         backgroundColor: [
           '#FF6384',
           '#36A2EB',
@@ -83,12 +87,12 @@ const Analytics: React.FC = () => {
     ],
   };
 
-  const ratingChartData = {
+  const completedChartData = {
     labels: categoryStats.map(stat => stat.category.replace('_', ' ').toUpperCase()),
     datasets: [
       {
-        label: 'Average Rating',
-        data: categoryStats.map(stat => stat.avg_rating),
+        label: 'Completed Jobs',
+        data: categoryStats.map(stat => stat.completed_count || 0),
         backgroundColor: 'rgba(75, 192, 192, 0.6)',
         borderColor: 'rgba(75, 192, 192, 1)',
         borderWidth: 1,
@@ -142,6 +146,11 @@ const Analytics: React.FC = () => {
 
   return (
     <div className="content-section active">
+      <div className="section-header">
+        <h1 className="section-title">Analytics Dashboard</h1>
+        <p className="section-subtitle">Platform performance metrics and insights</p>
+      </div>
+
       {/* Key Metrics */}
       <div className="metrics-grid">
         <div className="metric-card">
@@ -149,8 +158,8 @@ const Analytics: React.FC = () => {
             <i className="fas fa-chart-line"></i>
           </div>
           <div className="metric-content">
-            <h3>{formatCurrency(metrics?.total_revenue || 0)}</h3>
-            <p>Total Platform Revenue</p>
+            <h3>{formatCurrency(metrics?.platform_revenue || 0)}</h3>
+            <p>Platform Revenue</p>
           </div>
         </div>
         <div className="metric-card">
@@ -173,11 +182,11 @@ const Analytics: React.FC = () => {
         </div>
         <div className="metric-card">
           <div className="metric-icon">
-            <i className="fas fa-star"></i>
+            <i className="fas fa-percentage"></i>
           </div>
           <div className="metric-content">
-            <h3>{metrics?.average_rating?.toFixed(1) || '0.0'}</h3>
-            <p>Platform Average Rating</p>
+            <h3>{metrics?.job_completion_rate?.toFixed(1) || '0.0'}%</h3>
+            <p>Job Completion Rate</p>
           </div>
         </div>
       </div>
@@ -191,51 +200,38 @@ const Analytics: React.FC = () => {
           </div>
         </div>
         <div className="chart-container">
-          <h3>Revenue Distribution</h3>
+          <h3>Average Budget Distribution</h3>
           <div style={{ height: '300px' }}>
-            <Doughnut data={revenueChartData} options={doughnutOptions} />
+            <Doughnut data={budgetChartData} options={doughnutOptions} />
           </div>
         </div>
         <div className="chart-container">
-          <h3>Average Ratings by Category</h3>
+          <h3>Completed Jobs by Category</h3>
           <div style={{ height: '300px' }}>
-            <Bar data={ratingChartData} options={chartOptions} />
+            <Bar data={completedChartData} options={chartOptions} />
           </div>
         </div>
       </div>
 
       {/* Category Stats Table */}
-      <div className="table-container" style={{ marginTop: '32px' }}>
-        <h3 style={{ marginBottom: '16px' }}>Category Performance</h3>
+      <div className="data-table-container">
+        <h3 style={{ padding: '1rem', margin: 0, borderBottom: '1px solid rgba(226, 232, 240, 0.5)' }}>Category Performance</h3>
         <table className="data-table">
           <thead>
             <tr>
               <th>Category</th>
               <th>Total Jobs</th>
-              <th>Total Revenue</th>
-              <th>Average Rating</th>
+              <th>Average Budget</th>
+              <th>Completed Jobs</th>
             </tr>
           </thead>
           <tbody>
             {categoryStats.map((stat) => (
               <tr key={stat.category}>
                 <td>{stat.category.replace('_', ' ').toUpperCase()}</td>
-                <td>{stat.job_count}</td>
-                <td>{formatCurrency(stat.total_revenue)}</td>
-                <td>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <span>{stat.avg_rating.toFixed(1)}</span>
-                    <div>
-                      {Array.from({ length: 5 }, (_, i) => (
-                        <i
-                          key={i}
-                          className={`fas fa-star ${i < Math.floor(stat.avg_rating) ? 'text-warning' : 'text-muted'}`}
-                          style={{ fontSize: '12px' }}
-                        ></i>
-                      ))}
-                    </div>
-                  </div>
-                </td>
+                <td>{stat.job_count || 0}</td>
+                <td>{formatCurrency(stat.avg_budget || 0)}</td>
+                <td>{stat.completed_count || 0}</td>
               </tr>
             ))}
           </tbody>

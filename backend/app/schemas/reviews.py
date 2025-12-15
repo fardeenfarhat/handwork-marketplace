@@ -10,7 +10,7 @@ class ReviewStatus(str, Enum):
 
 class ReviewCreate(BaseModel):
     booking_id: int = Field(..., description="ID of the booking being reviewed")
-    reviewee_id: int = Field(..., description="ID of the user being reviewed")
+    reviewee_id: Optional[int] = Field(None, description="ID of the user being reviewed (optional, will be auto-determined)")
     rating: int = Field(..., ge=1, le=5, description="Rating from 1 to 5 stars")
     comment: Optional[str] = Field(None, max_length=1000, description="Review comment")
 
@@ -47,6 +47,7 @@ class ReviewResponse(BaseModel):
     # Additional fields for display
     reviewer_name: Optional[str] = None
     reviewer_role: Optional[str] = None
+    reviewee_name: Optional[str] = None
     job_title: Optional[str] = None
 
     class Config:

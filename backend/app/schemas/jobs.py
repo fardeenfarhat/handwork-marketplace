@@ -13,9 +13,12 @@ class JobCategory(str, Enum):
     CONSTRUCTION = "construction"
     CLEANING = "cleaning"
     AC_REPAIR = "ac_repair"
+    HVAC = "hvac"
     PAINTING = "painting"
     CARPENTRY = "carpentry"
     LANDSCAPING = "landscaping"
+    ROOFING = "roofing"
+    FLOORING = "flooring"
     HANDYMAN = "handyman"
     OTHER = "other"
 
@@ -38,8 +41,23 @@ class JobBase(BaseModel):
 
     @validator('preferred_date')
     def validate_preferred_date(cls, v):
-        if v and v < datetime.now():
-            raise ValueError('preferred_date cannot be in the past')
+        if v:
+            # Handle timezone-aware vs timezone-naive datetime comparison
+            from datetime import timezone, timedelta
+            
+            if v.tzinfo is not None:
+                # If the input datetime is timezone-aware, make now timezone-aware too
+                now = datetime.now(timezone.utc)
+                # Convert v to UTC if it's not already
+                if v.tzinfo != timezone.utc:
+                    v = v.astimezone(timezone.utc)
+            else:
+                # If input is timezone-naive, ensure now is also timezone-naive
+                now = datetime.now()
+            
+            # Add a small buffer (1 minute) to account for processing time
+            if v < (now - timedelta(minutes=1)):
+                raise ValueError('preferred_date cannot be in the past')
         return v
 
 
@@ -66,8 +84,23 @@ class JobUpdate(BaseModel):
 
     @validator('preferred_date')
     def validate_preferred_date(cls, v):
-        if v and v < datetime.now():
-            raise ValueError('preferred_date cannot be in the past')
+        if v:
+            # Handle timezone-aware vs timezone-naive datetime comparison
+            from datetime import timezone, timedelta
+            
+            if v.tzinfo is not None:
+                # If the input datetime is timezone-aware, make now timezone-aware too
+                now = datetime.now(timezone.utc)
+                # Convert v to UTC if it's not already
+                if v.tzinfo != timezone.utc:
+                    v = v.astimezone(timezone.utc)
+            else:
+                # If input is timezone-naive, ensure now is also timezone-naive
+                now = datetime.now()
+            
+            # Add a small buffer (1 minute) to account for processing time
+            if v < (now - timedelta(minutes=1)):
+                raise ValueError('preferred_date cannot be in the past')
         return v
 
 
@@ -107,6 +140,8 @@ class JobResponse(BaseModel):
     application_count: Optional[int] = None
     client_name: Optional[str] = None
     client_rating: Optional[float] = None
+    client_review_count: Optional[int] = None
+    client_user_id: Optional[int] = None
 
     class Config:
         from_attributes = True
@@ -128,8 +163,23 @@ class JobApplicationBase(BaseModel):
 
     @validator('proposed_start_date')
     def validate_proposed_start_date(cls, v):
-        if v and v < datetime.now():
-            raise ValueError('proposed_start_date cannot be in the past')
+        if v:
+            # Handle timezone-aware vs timezone-naive datetime comparison
+            from datetime import timezone, timedelta
+            
+            if v.tzinfo is not None:
+                # If the input datetime is timezone-aware, make now timezone-aware too
+                now = datetime.now(timezone.utc)
+                # Convert v to UTC if it's not already
+                if v.tzinfo != timezone.utc:
+                    v = v.astimezone(timezone.utc)
+            else:
+                # If input is timezone-naive, ensure now is also timezone-naive
+                now = datetime.now()
+            
+            # Add a small buffer (1 minute) to account for processing time
+            if v < (now - timedelta(minutes=1)):
+                raise ValueError('proposed_start_date cannot be in the past')
         return v
 
 
@@ -145,8 +195,23 @@ class JobApplicationUpdate(BaseModel):
 
     @validator('proposed_start_date')
     def validate_proposed_start_date(cls, v):
-        if v and v < datetime.now():
-            raise ValueError('proposed_start_date cannot be in the past')
+        if v:
+            # Handle timezone-aware vs timezone-naive datetime comparison
+            from datetime import timezone, timedelta
+            
+            if v.tzinfo is not None:
+                # If the input datetime is timezone-aware, make now timezone-aware too
+                now = datetime.now(timezone.utc)
+                # Convert v to UTC if it's not already
+                if v.tzinfo != timezone.utc:
+                    v = v.astimezone(timezone.utc)
+            else:
+                # If input is timezone-naive, ensure now is also timezone-naive
+                now = datetime.now()
+            
+            # Add a small buffer (1 minute) to account for processing time
+            if v < (now - timedelta(minutes=1)):
+                raise ValueError('proposed_start_date cannot be in the past')
         return v
 
 

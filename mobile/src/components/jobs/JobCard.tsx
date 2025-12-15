@@ -7,12 +7,15 @@ import {
   Image,
 } from 'react-native';
 import { Job } from '@/types';
+import { useAuth } from '@/hooks/useAuth';
 
 interface JobCardProps {
   job: Job;
   onPress: (jobId: number) => void;
   showDistance?: boolean;
   showApplicationsCount?: boolean;
+  clientReviewCount?: number;
+  currentUserId?: number;
 }
 
 export const JobCard: React.FC<JobCardProps> = ({
@@ -20,18 +23,46 @@ export const JobCard: React.FC<JobCardProps> = ({
   onPress,
   showDistance = false,
   showApplicationsCount = false,
+  clientReviewCount = 0,
+  currentUserId,
 }) => {
+  const { user } = useAuth();
+  // Safely convert all job properties to ensure they're renderable
+  const safeJob = {
+    id: Number(job.id) || 0,
+    title: String(job.title || 'No title'),
+    category: String(job.category || 'No category'),
+    description: String(job.description || 'No description'),
+    location: String(job.location || 'No location'),
+    status: String(job.status || 'open'),
+    clientName: job.clientName ? String(job.clientName) : '',
+    budgetMin: Number(job.budgetMin) || 0,
+    budgetMax: Number(job.budgetMax) || 0,
+    clientRating: Number(job.clientRating) || 0,
+    applicationsCount: Number(job.applicationsCount) || 0,
+    distance: job.distance ? Number(job.distance) : null,
+    preferredDate: String(job.preferredDate || ''),
+    createdAt: String(job.createdAt || ''),
+    clientUserId: job.clientUserId ? Number(job.clientUserId) : null,
+  };
+
   const formatBudget = (min: number, max: number) => {
+    if (!min && !max) return 'Budget not specified';
     return `$${min} - $${max}`;
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString();
+    if (!dateString) return 'Date not specified';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString();
+    } catch {
+      return 'Invalid date';
+    }
   };
 
   const getStatusColor = (status: string) => {
-    switch (status) {
+    switch (status.toLowerCase()) {
       case 'open':
         return '#4CAF50';
       case 'assigned':
@@ -50,68 +81,77 @@ export const JobCard: React.FC<JobCardProps> = ({
   return (
     <TouchableOpacity
       style={styles.container}
-      onPress={() => onPress(job.id)}
+      onPress={() => onPress(safeJob.id)}
       activeOpacity={0.7}
     >
       <View style={styles.header}>
         <Text style={styles.title} numberOfLines={2}>
-          {job.title}
+          {safeJob.title}
         </Text>
-        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(job.status) }]}>
-          <Text style={styles.statusText}>{job.status.toUpperCase()}</Text>
+        <View style={[styles.statusBadge, { backgroundColor: getStatusColor(safeJob.status) }]}>
+          <Text style={styles.statusText}>{safeJob.status.toUpperCase()}</Text>
         </View>
       </View>
 
-      <Text style={styles.category}>{job.category}</Text>
+      <Text style={styles.category}>{safeJob.category}</Text>
       <Text style={styles.description} numberOfLines={3}>
-        {job.description}
+        {safeJob.description}
       </Text>
 
       <View style={styles.details}>
         <View style={styles.detailRow}>
           <Text style={styles.label}>Budget:</Text>
-          <Text style={styles.budget}>{formatBudget(job.budgetMin, job.budgetMax)}</Text>
+          <Text style={styles.budget}>{formatBudget(safeJob.budgetMin, safeJob.budgetMax)}</Text>
         </View>
 
         <View style={styles.detailRow}>
           <Text style={styles.label}>Location:</Text>
           <Text style={styles.location} numberOfLines={1}>
-            {job.location}
+            {safeJob.location}
           </Text>
         </View>
 
         <View style={styles.detailRow}>
           <Text style={styles.label}>Preferred Date:</Text>
-          <Text style={styles.date}>{formatDate(job.preferredDate)}</Text>
+          <Text style={styles.date}>{formatDate(safeJob.preferredDate)}</Text>
         </View>
 
-        {showDistance && job.distance && (
+        {showDistance && safeJob.distance && (
           <View style={styles.detailRow}>
             <Text style={styles.label}>Distance:</Text>
-            <Text style={styles.distance}>{job.distance.toFixed(1)} miles</Text>
+            <Text style={styles.distance}>{safeJob.distance.toFixed(1)} miles</Text>
           </View>
         )}
 
-        {showApplicationsCount && job.applicationsCount !== undefined && (
+        {showApplicationsCount && safeJob.applicationsCount !== undefined && (
           <View style={styles.detailRow}>
             <Text style={styles.label}>Applications:</Text>
-            <Text style={styles.applicationsCount}>{job.applicationsCount}</Text>
+            <Text style={styles.applicationsCount}>{String(safeJob.applicationsCount)}</Text>
           </View>
         )}
       </View>
 
-      {job.clientName && (
+      {safeJob.clientName && (
         <View style={styles.clientInfo}>
-          <Text style={styles.clientName}>Posted by: {job.clientName}</Text>
-          {job.clientRating && (
+          <View style={styles.clientInfoHeader}>
+            <Text style={styles.clientName}>Posted by: {safeJob.clientName}</Text>
+            {/* Profile button removed - should only be in job details */}
+          </View>
+          {safeJob.clientRating > 0 && (
             <View style={styles.ratingContainer}>
-              <Text style={styles.rating}>★ {job.clientRating.toFixed(1)}</Text>
+              <Text style={styles.rating}>
+                <Text style={styles.ratingIcon}>★ </Text>
+                <Text style={styles.ratingValue}>{safeJob.clientRating.toFixed(1)}</Text>
+                {clientReviewCount > 0 && (
+                  <Text style={styles.reviewCount}> ({clientReviewCount} reviews)</Text>
+                )}
+              </Text>
             </View>
           )}
         </View>
       )}
 
-      <Text style={styles.postedDate}>Posted {formatDate(job.createdAt)}</Text>
+      <Text style={styles.postedDate}>Posted {formatDate(safeJob.createdAt)}</Text>
     </TouchableOpacity>
   );
 };
@@ -206,26 +246,43 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   clientInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 8,
     paddingTop: 8,
     borderTopWidth: 1,
     borderTopColor: '#f0f0f0',
   },
+  clientInfoHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   clientName: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 13,
+    color: '#333',
+    fontWeight: '500',
   },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   rating: {
-    fontSize: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  ratingIcon: {
+    fontSize: 14,
+    color: '#FFD700',
+  },
+  ratingValue: {
+    fontSize: 13,
     color: '#FF9800',
-    fontWeight: 'bold',
+    fontWeight: '600',
+  },
+  reviewCount: {
+    fontSize: 11,
+    color: '#666',
+    fontWeight: '400',
   },
   postedDate: {
     fontSize: 10,

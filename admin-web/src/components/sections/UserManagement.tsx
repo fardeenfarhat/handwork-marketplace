@@ -110,88 +110,73 @@ const UserManagement: React.FC = () => {
 
   const getStatusBadge = (user: User) => {
     if (!user.is_active) {
-      return <span className="status-badge status-inactive">Inactive</span>;
+      return <span className="status-badge inactive">Inactive</span>;
     }
     if (!user.is_verified) {
-      return <span className="status-badge status-pending">Unverified</span>;
+      return <span className="status-badge unverified">Unverified</span>;
     }
-    return <span className="status-badge status-active">Active</span>;
+    return <span className="status-badge active">Active</span>;
   };
 
-  const renderPagination = () => {
-    const pages = [];
-    const maxVisiblePages = 5;
-    const startPage = Math.max(1, pagination.page - Math.floor(maxVisiblePages / 2));
-    const endPage = Math.min(pagination.pages, startPage + maxVisiblePages - 1);
 
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(
-        <button
-          key={i}
-          onClick={() => handlePageChange(i)}
-          className={pagination.page === i ? 'active' : ''}
-        >
-          {i}
-        </button>
-      );
-    }
-
-    return (
-      <div className="pagination">
-        <button
-          onClick={() => handlePageChange(pagination.page - 1)}
-          disabled={pagination.page === 1}
-        >
-          <i className="fas fa-chevron-left"></i>
-        </button>
-        {pages}
-        <button
-          onClick={() => handlePageChange(pagination.page + 1)}
-          disabled={pagination.page === pagination.pages}
-        >
-          <i className="fas fa-chevron-right"></i>
-        </button>
-      </div>
-    );
-  };
 
   return (
     <div className="content-section active">
-      {/* Filters */}
       <div className="section-header">
-        <div className="filters">
-          <select
-            value={filters.role}
-            onChange={(e) => handleFilterChange('role', e.target.value)}
-          >
-            <option value="">All Roles</option>
-            <option value="client">Clients</option>
-            <option value="worker">Workers</option>
-          </select>
-          <select
-            value={filters.is_verified}
-            onChange={(e) => handleFilterChange('is_verified', e.target.value)}
-          >
-            <option value="">All Status</option>
-            <option value="true">Verified</option>
-            <option value="false">Unverified</option>
-          </select>
-          <select
-            value={filters.is_active}
-            onChange={(e) => handleFilterChange('is_active', e.target.value)}
-          >
-            <option value="">All Activity</option>
-            <option value="true">Active</option>
-            <option value="false">Inactive</option>
-          </select>
-          <input
-            type="text"
-            placeholder="Search users..."
-            value={filters.search}
-            onChange={(e) => handleFilterChange('search', e.target.value)}
-          />
-          <button onClick={applyFilters} className="btn btn-primary">
-            Apply
+        <h1 className="section-title">User Management</h1>
+        <p className="section-subtitle">Manage platform users, roles, and permissions</p>
+      </div>
+
+      {/* Filters */}
+      <div className="filters-section">
+        <div className="filters-grid">
+          <div className="filter-group">
+            <label>Role</label>
+            <select
+              value={filters.role}
+              onChange={(e) => handleFilterChange('role', e.target.value)}
+            >
+              <option value="">All Roles</option>
+              <option value="client">Clients</option>
+              <option value="worker">Workers</option>
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Verification Status</label>
+            <select
+              value={filters.is_verified}
+              onChange={(e) => handleFilterChange('is_verified', e.target.value)}
+            >
+              <option value="">All Status</option>
+              <option value="true">Verified</option>
+              <option value="false">Unverified</option>
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Activity Status</label>
+            <select
+              value={filters.is_active}
+              onChange={(e) => handleFilterChange('is_active', e.target.value)}
+            >
+              <option value="">All Activity</option>
+              <option value="true">Active</option>
+              <option value="false">Inactive</option>
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Search</label>
+            <input
+              type="text"
+              placeholder="Search users..."
+              value={filters.search}
+              onChange={(e) => handleFilterChange('search', e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="filters-actions">
+          <button onClick={applyFilters} className="btn">
+            <i className="fas fa-search"></i>
+            Apply Filters
           </button>
         </div>
       </div>
@@ -205,7 +190,7 @@ const UserManagement: React.FC = () => {
         </div>
       ) : (
         <>
-          <div className="table-container">
+          <div className="data-table-container">
             <table className="data-table">
               <thead>
                 <tr>
@@ -221,27 +206,29 @@ const UserManagement: React.FC = () => {
               <tbody>
                 {users.map((user) => (
                   <tr key={user.id}>
-                    <td>{user.id}</td>
+                    <td>#{user.id}</td>
                     <td>{user.first_name} {user.last_name}</td>
                     <td>{user.email}</td>
                     <td>
                       <span className="status-badge">
-                        {user.role.toUpperCase()}
+                        {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
                       </span>
                     </td>
                     <td>{getStatusBadge(user)}</td>
                     <td>{formatDate(user.created_at)}</td>
                     <td>
-                      <button
-                        onClick={() => {
-                          setSelectedUser(user);
-                          setShowModal(true);
-                        }}
-                        className="btn btn-outline"
-                      >
-                        <i className="fas fa-cog"></i>
-                        Manage
-                      </button>
+                      <div className="action-buttons">
+                        <button
+                          onClick={() => {
+                            setSelectedUser(user);
+                            setShowModal(true);
+                          }}
+                          className="action-btn view"
+                        >
+                          <i className="fas fa-cog"></i>
+                          Manage
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -249,7 +236,42 @@ const UserManagement: React.FC = () => {
             </table>
           </div>
 
-          {renderPagination()}
+          <div className="pagination">
+            <div className="pagination-info">
+              Showing {(pagination.page - 1) * pagination.size + 1} to {Math.min(pagination.page * pagination.size, pagination.total)} of {pagination.total} users
+            </div>
+            <div className="pagination-controls">
+              <button
+                onClick={() => handlePageChange(pagination.page - 1)}
+                disabled={pagination.page === 1}
+                className="pagination-btn"
+              >
+                <i className="fas fa-chevron-left"></i>
+              </button>
+              {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
+                const page = i + Math.max(1, pagination.page - 2);
+                if (page <= pagination.pages) {
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      className={`pagination-btn ${pagination.page === page ? 'active' : ''}`}
+                    >
+                      {page}
+                    </button>
+                  );
+                }
+                return null;
+              })}
+              <button
+                onClick={() => handlePageChange(pagination.page + 1)}
+                disabled={pagination.page === pagination.pages}
+                className="pagination-btn"
+              >
+                <i className="fas fa-chevron-right"></i>
+              </button>
+            </div>
+          </div>
         </>
       )}
 
@@ -266,17 +288,31 @@ const UserManagement: React.FC = () => {
                 <i className="fas fa-times"></i>
               </button>
             </div>
-            <div className="modal-content">
-              <p><strong>Email:</strong> {selectedUser.email}</p>
-              <p><strong>Role:</strong> {selectedUser.role}</p>
-              <p><strong>Status:</strong> {getStatusBadge(selectedUser)}</p>
-              <p><strong>Created:</strong> {formatDate(selectedUser.created_at)}</p>
+            <div className="modal-body">
+              <div className="detail-card">
+                <div className="detail-row">
+                  <span className="detail-label">Email:</span>
+                  <span className="detail-value">{selectedUser.email}</span>
+                </div>
+                <div className="detail-row">
+                  <span className="detail-label">Role:</span>
+                  <span className="detail-value">{selectedUser.role.charAt(0).toUpperCase() + selectedUser.role.slice(1)}</span>
+                </div>
+                <div className="detail-row">
+                  <span className="detail-label">Status:</span>
+                  <span className="detail-value">{getStatusBadge(selectedUser)}</span>
+                </div>
+                <div className="detail-row">
+                  <span className="detail-label">Created:</span>
+                  <span className="detail-value">{formatDate(selectedUser.created_at)}</span>
+                </div>
+              </div>
             </div>
-            <div className="modal-actions">
+            <div className="modal-footer">
               {selectedUser.is_active ? (
                 <button
                   onClick={() => handleUserAction('deactivate')}
-                  className="btn btn-warning"
+                  className="action-btn suspend"
                   disabled={actionLoading}
                 >
                   <i className="fas fa-ban"></i>
@@ -285,7 +321,7 @@ const UserManagement: React.FC = () => {
               ) : (
                 <button
                   onClick={() => handleUserAction('activate')}
-                  className="btn btn-success"
+                  className="action-btn view"
                   disabled={actionLoading}
                 >
                   <i className="fas fa-check"></i>
@@ -295,7 +331,7 @@ const UserManagement: React.FC = () => {
               {!selectedUser.is_verified && (
                 <button
                   onClick={() => handleUserAction('verify')}
-                  className="btn btn-primary"
+                  className="action-btn edit"
                   disabled={actionLoading}
                 >
                   <i className="fas fa-check-circle"></i>
@@ -304,7 +340,7 @@ const UserManagement: React.FC = () => {
               )}
               <button
                 onClick={() => handleUserAction('suspend')}
-                className="btn btn-danger"
+                className="action-btn delete"
                 disabled={actionLoading}
               >
                 <i className="fas fa-user-slash"></i>

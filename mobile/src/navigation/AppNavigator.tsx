@@ -10,6 +10,7 @@ import { loadStoredAuth } from '@/store/slices/authSlice';
 import { linkingConfig, deepLinkingService } from '@/services/deepLinking';
 import AuthNavigator from './AuthNavigator';
 import MainTabNavigator from './MainTabNavigator';
+import ReviewStackNavigator from './ReviewStackNavigator';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
 import NotificationHandler from '@/components/common/NotificationHandler';
 
@@ -64,21 +65,15 @@ export default function AppNavigator() {
     return <LoadingSpinner text="Loading..." />;
   }
 
-  // Determine which navigator to show based on auth state
-  // Show auth navigator if:
-  // 1. User is not authenticated, OR
-  // 2. User is authenticated but email not verified, OR  
-  // 3. User is authenticated and email verified but onboarding not completed
-  const shouldShowAuth = !isAuthenticated || 
-    (isAuthenticated && !isEmailVerified) || 
-    (isAuthenticated && isEmailVerified && !onboardingCompleted);
+  // Simple logic: Show main app ONLY if authenticated + email verified + onboarding done
+  const canShowMainApp = isAuthenticated && isEmailVerified && onboardingCompleted;
   
-  console.log('🧭 APP NAVIGATOR: shouldShowAuth =', shouldShowAuth);
-  console.log('🧭 Navigation decision logic:');
-  console.log('  - !isAuthenticated:', !isAuthenticated);
-  console.log('  - isAuthenticated && !isEmailVerified:', isAuthenticated && !isEmailVerified);
-  console.log('  - isAuthenticated && isEmailVerified && !onboardingCompleted:', isAuthenticated && isEmailVerified && !onboardingCompleted);
-  console.log('  - Will show:', shouldShowAuth ? 'Auth Navigator' : 'Main Navigator');
+  console.log('🧭 APP NAVIGATOR: Navigation decision');
+  console.log('  - isAuthenticated:', isAuthenticated);
+  console.log('  - isEmailVerified:', isEmailVerified);
+  console.log('  - onboardingCompleted:', onboardingCompleted);
+  console.log('  - canShowMainApp:', canShowMainApp);
+  console.log('  - Will show:', canShowMainApp ? 'Main Navigator' : 'Auth Navigator');
 
   return (
     <NavigationContainer
@@ -93,10 +88,20 @@ export default function AppNavigator() {
     >
       <NotificationHandler />
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {shouldShowAuth ? (
-          <Stack.Screen name="Auth" component={AuthNavigator} />
+        {canShowMainApp ? (
+          <>
+            <Stack.Screen name="Main" component={MainTabNavigator} />
+            <Stack.Screen 
+              name="Reviews" 
+              component={ReviewStackNavigator}
+              options={{
+                presentation: 'modal',
+                headerShown: false,
+              }}
+            />
+          </>
         ) : (
-          <Stack.Screen name="Main" component={MainTabNavigator} />
+          <Stack.Screen name="Auth" component={AuthNavigator} />
         )}
       </Stack.Navigator>
     </NavigationContainer>

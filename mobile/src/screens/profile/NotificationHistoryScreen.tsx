@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { BackButton } from '../../components/common';
 
 import { PushNotification } from '../../types';
 import notificationService from '../../services/notificationService';
@@ -273,12 +274,7 @@ const NotificationHistoryScreen: React.FC<NotificationHistoryScreenProps> = ({
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => navigation.goBack()}
-        >
-          <Ionicons name="arrow-back" size={24} color="#333" />
-        </TouchableOpacity>
+        <BackButton />
         <Text style={styles.headerTitle}>Notifications</Text>
         <TouchableOpacity
           style={styles.headerAction}

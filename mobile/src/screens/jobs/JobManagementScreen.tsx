@@ -8,12 +8,19 @@ import {
   RefreshControl,
   Alert,
   ScrollView,
+  Animated,
+  Dimensions,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { StackNavigationProp } from '@/types/navigation';
 import { useSelector } from 'react-redux';
-import { MockIcon as Icon } from '@/components/common/MockIcon';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { ModernCard } from '@/components/ui/ModernCard';
+import { RouteProp, useRoute } from '@react-navigation/native';
+import { Colors, Typography, Spacing, BorderRadius, Shadows, Gradients } from '@/styles/DesignSystem';
 
 import { Job, JobApplication, JobsStackParamList } from '@/types';
 import { RootState } from '@/store';
@@ -21,7 +28,10 @@ import { apiService } from '@/services/api';
 import { JobCard } from '@/components/jobs/JobCard';
 import { ErrorHandler } from '@/utils/errorHandler';
 
+const { height } = Dimensions.get('window');
+
 type JobManagementScreenNavigationProp = StackNavigationProp<JobsStackParamList, 'JobManagement'>;
+type JobManagementScreenRouteProp = RouteProp<JobsStackParamList, 'JobManagement'>;
 
 interface TabData {
   key: string;
@@ -31,53 +41,86 @@ interface TabData {
 
 export default function JobManagementScreen() {
   const navigation = useNavigation<JobManagementScreenNavigationProp>();
+  const route = useRoute<JobManagementScreenRouteProp>();
   const { user } = useSelector((state: RootState) => state.auth);
   
-  const [activeTab, setActiveTab] = useState('posted');
+  const isWorker = user?.role === 'worker';
+  const isClient = user?.role === 'client';
+  
+  const getDefaultTab = () => {
+    if (route.params?.initialTab) {
+      return route.params.initialTab;
+    }
+    // Default to the first tab available for the user's role
+    return isWorker ? 'applied' : 'posted';
+  };
+
+  const [activeTab, setActiveTab] = useState<'posted' | 'applications' | 'applied' | 'bookings'>(
+    getDefaultTab()
+  );
   const [postedJobs, setPostedJobs] = useState<Job[]>([]);
   const [appliedJobs, setAppliedJobs] = useState<Job[]>([]);
   const [applications, setApplications] = useState<JobApplication[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-
-  const isWorker = user?.role === 'worker';
-  const isClient = user?.role === 'client';
 
   const tabs: TabData[] = isClient 
     ? [
         { key: 'posted', title: 'Posted Jobs', count: postedJobs.length },
         { key: 'applications', title: 'Applications', count: applications.length },
+        { key: 'bookings', title: 'Active Jobs', count: bookings.length },
       ]
     : [
         { key: 'applied', title: 'Applied Jobs', count: appliedJobs.length },
         { key: 'applications', title: 'My Applications', count: applications.length },
+        { key: 'bookings', title: 'My Bookings', count: bookings.length },
       ];
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
+      console.log('🔄 JobManagement: Fetching data...');
       
       if (isClient) {
-        // Fetch client's posted jobs and applications received
-        const [jobsResponse, applicationsResponse] = await Promise.all([
+        // Fetch client's posted jobs, applications received, and bookings
+        const [jobsResponse, applicationsResponse, bookingsResponse] = await Promise.all([
           apiService.getClientJobs(),
           apiService.getClientApplications(),
+          apiService.getBookings(),
         ]);
+        console.log('✅ JobManagement: Client data fetched', {
+          jobs: jobsResponse.length,
+          applications: applicationsResponse.length,
+          bookings: bookingsResponse.length
+        });
+        console.log('📊 JobManagement: Client bookings data:', bookingsResponse);
         setPostedJobs(jobsResponse);
         setApplications(applicationsResponse as JobApplication[]);
+        setBookings(bookingsResponse);
       } else if (isWorker) {
-        // Fetch worker's applied jobs and applications sent
-        const [jobsResponse, applicationsResponse] = await Promise.all([
+        // Fetch worker's applied jobs, applications sent, and bookings
+        const [jobsResponse, applicationsResponse, bookingsResponse] = await Promise.all([
           apiService.getWorkerAppliedJobs(),
           apiService.getWorkerApplications(),
+          apiService.getBookings(),
         ]);
+        console.log('✅ JobManagement: Worker data fetched', {
+          appliedJobs: jobsResponse.length,
+          applications: applicationsResponse.length,
+          bookings: bookingsResponse.length
+        });
+        console.log('📊 JobManagement: Worker bookings data:', bookingsResponse);
         setAppliedJobs(jobsResponse);
         setApplications(applicationsResponse as JobApplication[]);
+        setBookings(bookingsResponse);
       }
     } catch (error) {
+      console.error('❌ JobManagement: Error fetching data', error);
       ErrorHandler.handle(error);
     } finally {
       setLoading(false);
+      console.log('🏁 JobManagement: Loading complete');
     }
   }, [isClient, isWorker]);
 
@@ -91,13 +134,35 @@ export default function JobManagementScreen() {
     fetchData();
   }, [fetchData]);
 
+  // Refresh data when screen comes into focus (e.g., after posting a job)
+  useFocusEffect(
+    useCallback(() => {
+      // Force refresh if coming from job posting
+      if (route.params?.refresh) {
+        fetchData();
+        // Clear the refresh parameter to avoid continuous refreshing
+        navigation.setParams({ refresh: undefined });
+      } else {
+        fetchData();
+      }
+    }, [fetchData, route.params?.refresh, navigation])
+  );
+
   const handleJobPress = (jobId: number) => {
     navigation.navigate('JobDetail', { jobId });
   };
 
+  const handleClientPress = (clientUserId: number) => {
+    // Navigate to view the client's profile
+    navigation.navigate('UserProfileView', { 
+      userId: clientUserId, 
+      userType: 'client' 
+    });
+  };
+
   const handleEditJob = (job: Job) => {
-    // Navigate to edit job screen (could be same as JobPost with edit mode)
-    Alert.alert('Edit Job', 'Job editing functionality will be implemented');
+    // Navigate to JobPost screen in edit mode
+    navigation.navigate('JobPost', { jobId: job.id, isEdit: true });
   };
 
   const handleDeleteJob = (job: Job) => {
@@ -146,8 +211,53 @@ export default function JobManagementScreen() {
     );
   };
 
+  const handleAcceptApplication = (application: JobApplication) => {
+    Alert.alert(
+      'Accept Application',
+      `Are you sure you want to accept ${application.workerName}'s application?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Accept',
+          onPress: async () => {
+            try {
+              await apiService.acceptApplication(application.id);
+              Alert.alert('Success', 'Application accepted successfully');
+              fetchData();
+            } catch (error) {
+              ErrorHandler.handle(error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleRejectApplication = (application: JobApplication) => {
+    Alert.alert(
+      'Reject Application',
+      `Are you sure you want to reject ${application.workerName}'s application?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reject',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await apiService.rejectApplication(application.id);
+              Alert.alert('Success', 'Application rejected successfully');
+              fetchData();
+            } catch (error) {
+              ErrorHandler.handle(error);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const renderJobCard = ({ item }: { item: Job }) => (
-    <View style={styles.jobCardContainer}>
+    <>
       <JobCard
         job={item}
         onPress={handleJobPress}
@@ -159,19 +269,19 @@ export default function JobManagementScreen() {
             style={styles.actionButton}
             onPress={() => handleEditJob(item)}
           >
-            <Icon name="edit" size={16} color="#2196F3" />
+            <Ionicons name="create-outline" size={18} color="#2196F3" />
             <Text style={styles.actionButtonText}>Edit</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, styles.deleteButton]}
             onPress={() => handleDeleteJob(item)}
           >
-            <Icon name="delete" size={16} color="#F44336" />
+            <Ionicons name="trash-outline" size={18} color="#F44336" />
             <Text style={[styles.actionButtonText, styles.deleteButtonText]}>Delete</Text>
           </TouchableOpacity>
         </View>
       )}
-    </View>
+    </>
   );
 
   const renderApplicationCard = ({ item }: { item: JobApplication }) => (
@@ -211,6 +321,23 @@ export default function JobManagementScreen() {
           <Text style={styles.viewJobButtonText}>View Job</Text>
         </TouchableOpacity>
         
+        {isClient && item.status === 'pending' && (
+          <>
+            <TouchableOpacity
+              style={styles.acceptButton}
+              onPress={() => handleAcceptApplication(item)}
+            >
+              <Text style={styles.acceptButtonText}>Accept</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.rejectButton}
+              onPress={() => handleRejectApplication(item)}
+            >
+              <Text style={styles.rejectButtonText}>Reject</Text>
+            </TouchableOpacity>
+          </>
+        )}
+        
         {isWorker && item.status === 'pending' && (
           <TouchableOpacity
             style={styles.withdrawButton}
@@ -230,6 +357,85 @@ export default function JobManagementScreen() {
       case 'accepted':
         return '#4CAF50';
       case 'rejected':
+        return '#F44336';
+      default:
+        return '#757575';
+    }
+  };
+
+  const renderBookingCard = ({ item }: { item: any }) => {
+    console.log('📋 Rendering booking card:', JSON.stringify(item, null, 2));
+    
+    return (
+      <TouchableOpacity
+        style={styles.bookingCard}
+        onPress={() => navigation.navigate('Payments', {
+          screen: 'JobTracking',
+          params: { bookingId: item.id }
+        } as any)}
+      >
+        <View style={styles.bookingContent}>
+          <View style={styles.bookingHeader}>
+            <Text style={styles.bookingTitle}>{item.jobTitle}</Text>
+            <View style={[styles.statusBadge, { backgroundColor: getBookingStatusColor(item.status) }]}>
+              <Text style={styles.statusText}>{item.status.replace('_', ' ').toUpperCase()}</Text>
+            </View>
+          </View>
+          
+          <View style={styles.bookingDetails}>
+            <Text style={styles.bookingPartner}>
+              {isClient ? `Worker: ${item.workerName}` : `Client: ${item.clientName}`}
+            </Text>
+            <Text style={styles.bookingRate}>Rate: ${item.agreedRate}/hr</Text>
+            {item.startDate && (
+              <Text style={styles.bookingDate}>
+                Started: {new Date(item.startDate).toLocaleDateString()}
+              </Text>
+            )}
+          </View>
+          
+          <View style={styles.bookingActions}>
+            {item.status === 'completed' ? (
+              item.hasUserReview ? (
+                <View style={styles.reviewedIndicator}>
+                  <Text style={styles.reviewedText}>✓ Reviewed</Text>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.reviewButton}
+                  onPress={(e) => {
+                    e.stopPropagation(); // Prevent navigation to JobTracking
+                    
+                    // Navigate to JobTracking where review can be submitted
+                    navigation.navigate('JobTracking', { 
+                      bookingId: item.id,
+                      showReviewPrompt: true 
+                    });
+                  }}
+                >
+                  <Text style={styles.reviewButtonText}>Leave Review</Text>
+                </TouchableOpacity>
+              )
+            ) : (
+              <Text style={styles.trackText}>Tap to track progress →</Text>
+            )}
+          </View>
+        </View>
+      </TouchableOpacity>
+    );
+  };
+
+  const getBookingStatusColor = (status: string) => {
+    switch (status.toLowerCase()) {
+      case 'confirmed':
+        return '#2196F3';
+      case 'in_progress':
+        return '#FF9800';
+      case 'completed':
+        return '#4CAF50';
+      case 'approved':
+        return '#8BC34A';
+      case 'cancelled':
         return '#F44336';
       default:
         return '#757575';
@@ -257,7 +463,9 @@ export default function JobManagementScreen() {
             }
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <Icon name="work-outline" size={64} color="#ccc" />
+                <View style={styles.emptyIconBadge}>
+                  <Ionicons name="briefcase-outline" size={48} color="#11998E" />
+                </View>
                 <Text style={styles.emptyTitle}>No Posted Jobs</Text>
                 <Text style={styles.emptySubtitle}>
                   You haven't posted any jobs yet. Create your first job posting to find workers.
@@ -266,7 +474,15 @@ export default function JobManagementScreen() {
                   style={styles.postJobButton}
                   onPress={() => navigation.navigate('JobPost')}
                 >
-                  <Text style={styles.postJobButtonText}>Post a Job</Text>
+                  <LinearGradient
+                    colors={['#11998E', '#38EF7D']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.postJobButtonGradient}
+                  >
+                    <Ionicons name="add" size={20} color="#FFFFFF" />
+                    <Text style={styles.postJobButtonText}>Post a Job</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
             }
@@ -286,7 +502,9 @@ export default function JobManagementScreen() {
             }
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <Icon name="search" size={64} color="#ccc" />
+                <View style={styles.emptyIconBadge}>
+                  <Ionicons name="search-outline" size={48} color="#11998E" />
+                </View>
                 <Text style={styles.emptyTitle}>No Applied Jobs</Text>
                 <Text style={styles.emptySubtitle}>
                   You haven't applied to any jobs yet. Browse available jobs to find opportunities.
@@ -295,7 +513,15 @@ export default function JobManagementScreen() {
                   style={styles.browseJobsButton}
                   onPress={() => navigation.navigate('JobsList')}
                 >
-                  <Text style={styles.browseJobsButtonText}>Browse Jobs</Text>
+                  <LinearGradient
+                    colors={['#11998E', '#38EF7D']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.browseJobsButtonGradient}
+                  >
+                    <Ionicons name="compass" size={20} color="#FFFFFF" />
+                    <Text style={styles.browseJobsButtonText}>Browse Jobs</Text>
+                  </LinearGradient>
                 </TouchableOpacity>
               </View>
             }
@@ -315,7 +541,9 @@ export default function JobManagementScreen() {
             }
             ListEmptyComponent={
               <View style={styles.emptyState}>
-                <Icon name="assignment" size={64} color="#ccc" />
+                <View style={styles.emptyIconBadge}>
+                  <Ionicons name="document-text-outline" size={48} color="#11998E" />
+                </View>
                 <Text style={styles.emptyTitle}>
                   {isClient ? 'No Applications Received' : 'No Applications Sent'}
                 </Text>
@@ -332,29 +560,100 @@ export default function JobManagementScreen() {
           />
         );
 
+      case 'bookings':
+        return (
+          <FlatList
+            data={bookings}
+            renderItem={renderBookingCard}
+            keyExtractor={(item) => item.id.toString()}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+            }
+            ListEmptyComponent={
+              <View style={styles.emptyState}>
+                <View style={styles.emptyIconBadge}>
+                  <Ionicons name="calendar-outline" size={48} color="#11998E" />
+                </View>
+                <Text style={styles.emptyTitle}>No Active Bookings</Text>
+                <Text style={styles.emptySubtitle}>
+                  {isClient 
+                    ? 'No active jobs yet. Accept applications to start working with professionals.'
+                    : 'No active jobs yet. Your accepted applications will appear here.'
+                  }
+                </Text>
+              </View>
+            }
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={bookings.length === 0 ? styles.emptyContainer : undefined}
+          />
+        );
+
       default:
         return null;
     }
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Job Management</Text>
-        {isClient && (
-          <TouchableOpacity
-            style={styles.postButton}
-            onPress={() => navigation.navigate('JobPost')}
-          >
-            <Icon name="add" size={20} color="#fff" />
-            <Text style={styles.postButtonText}>Post Job</Text>
-          </TouchableOpacity>
-        )}
-      </View>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      
+      {/* Gradient Header */}
+      <LinearGradient
+        colors={['#11998E', '#38EF7D', '#06D6A0']}
+        style={styles.gradientBackground}
+      >
+        {/* Decorative Circles */}
+        <View style={[styles.decorativeCircle, { width: 200, height: 200, top: -50, right: -50 }]} />
+        <View style={[styles.decorativeCircle, { width: 150, height: 150, top: 80, left: -40 }]} />
+        <View style={[styles.decorativeCircle, { width: 120, height: 120, bottom: -20, right: 60 }]} />
+
+        {/* Header with Back Button */}
+        <SafeAreaView edges={['top']}>
+          <View style={styles.header}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <View style={styles.headerTitleContainer}>
+              <View style={styles.iconBadge}>
+                <Ionicons name="folder-open" size={24} color="#11998E" />
+              </View>
+              <Text style={styles.headerTitle}>
+                {isClient ? 'Manage Jobs' : 'My Activity'}
+              </Text>
+            </View>
+
+            <View style={{ width: 44 }} />
+          </View>
+
+          {/* Stats Cards */}
+          <View style={styles.statsContainer}>
+            {tabs.map((tab, index) => (
+              <View key={tab.key} style={styles.statCard}>
+                <Ionicons 
+                  name={
+                    tab.key === 'posted' ? 'briefcase' :
+                    tab.key === 'applied' ? 'send' :
+                    tab.key === 'applications' ? 'document-text' :
+                    'checkmark-circle'
+                  } 
+                  size={20} 
+                  color="#FFFFFF" 
+                />
+                <Text style={styles.statValue}>{tab.count}</Text>
+                <Text style={styles.statLabel}>{tab.title.replace(' Jobs', '').replace(' My', '')}</Text>
+              </View>
+            ))}
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
 
       {/* Tabs */}
       <View style={styles.tabContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScrollContent}>
           {tabs.map((tab) => (
             <TouchableOpacity
               key={tab.key}
@@ -362,8 +661,16 @@ export default function JobManagementScreen() {
                 styles.tab,
                 activeTab === tab.key && styles.activeTab,
               ]}
-              onPress={() => setActiveTab(tab.key)}
+              onPress={() => setActiveTab(tab.key as 'posted' | 'applications' | 'applied' | 'bookings')}
             >
+              {activeTab === tab.key && (
+                <LinearGradient
+                  colors={['#11998E', '#38EF7D']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.activeTabGradient}
+                />
+              )}
               <Text
                 style={[
                   styles.tabText,
@@ -373,7 +680,7 @@ export default function JobManagementScreen() {
                 {tab.title}
               </Text>
               {tab.count > 0 && (
-                <View style={styles.tabBadge}>
+                <View style={[styles.tabBadge, activeTab === tab.key && styles.activeTabBadge]}>
                   <Text style={styles.tabBadgeText}>{tab.count}</Text>
                 </View>
               )}
@@ -386,83 +693,151 @@ export default function JobManagementScreen() {
       <View style={styles.content}>
         {renderTabContent()}
       </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: Colors.neutral[50],
+  },
+
+  // Gradient Header
+  gradientBackground: {
+    paddingBottom: Spacing[4],
+  },
+  decorativeCircle: {
+    position: 'absolute',
+    borderRadius: 9999,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   header: {
     flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'space-between',
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
+    paddingBottom: Spacing[4],
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+  headerTitleContainer: {
+    alignItems: 'center',
+    flex: 1,
   },
-  postButton: {
+  iconBadge: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing[2],
+    ...Shadows.lg,
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+
+  // Stats Container
+  statsContainer: {
     flexDirection: 'row',
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
+    gap: Spacing[2],
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing[3],
     alignItems: 'center',
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 4,
+    gap: Spacing[1],
   },
-  postButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
+  statValue: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
+  statLabel: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.medium as any,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+  },
+
+  // Tabs
   tabContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: Colors.neutral[200],
+    ...Shadows.base,
+  },
+  tabScrollContent: {
+    paddingHorizontal: Spacing[2],
+    paddingVertical: Spacing[2],
+    gap: Spacing[2],
   },
   tab: {
+    paddingHorizontal: Spacing[5],
+    paddingVertical: Spacing[3],
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.neutral[100],
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    marginHorizontal: 4,
+    gap: Spacing[2],
+    overflow: 'hidden',
   },
   activeTab: {
-    borderBottomWidth: 2,
-    borderBottomColor: '#2196F3',
+    backgroundColor: 'transparent',
+  },
+  activeTabGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   tabText: {
-    fontSize: 16,
-    color: '#666',
-    fontWeight: '500',
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium as any,
+    color: Colors.neutral[700],
   },
   activeTabText: {
-    color: '#2196F3',
-    fontWeight: 'bold',
+    color: '#FFFFFF',
+    fontWeight: Typography.fontWeight.bold as any,
   },
   tabBadge: {
-    backgroundColor: '#FF9800',
-    borderRadius: 10,
-    paddingHorizontal: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.full,
+    paddingHorizontal: Spacing[2],
     paddingVertical: 2,
-    marginLeft: 8,
-    minWidth: 20,
+    minWidth: 24,
     alignItems: 'center',
   },
-  tabBadgeText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: 'bold',
+  activeTabBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
   },
+  tabBadgeText: {
+    color: '#11998E',
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.bold as any,
+  },
+
+  // Content
   content: {
     flex: 1,
   },
@@ -470,95 +845,24 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: Spacing[6],
   },
-  emptyContainer: {
-    flexGrow: 1,
-  },
-  emptyState: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  emptySubtitle: {
-    fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
-    marginBottom: 24,
-    lineHeight: 22,
-  },
-  postJobButton: {
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 25,
-  },
-  postJobButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  browseJobsButton: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 25,
-  },
-  browseJobsButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  jobCardContainer: {
-    marginBottom: 8,
-  },
+
+  // Job Cards
   jobActions: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: '#fff',
+    gap: Spacing[2],
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[2],
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: Spacing[4],
+    marginTop: -Spacing[4],
+    marginBottom: Spacing[2],
+    paddingTop: Spacing[3],
+    borderBottomLeftRadius: BorderRadius.xl,
+    borderBottomRightRadius: BorderRadius.xl,
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
-    gap: 12,
-  },
-  actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: '#f0f8ff',
-    borderWidth: 1,
-    borderColor: '#2196F3',
-    gap: 4,
-  },
-  actionButtonText: {
-    color: '#2196F3',
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  deleteButton: {
-    backgroundColor: '#fff5f5',
-    borderColor: '#F44336',
-  },
-  deleteButtonText: {
-    color: '#F44336',
-  },
-  applicationCard: {
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginVertical: 8,
-    borderRadius: 12,
-    padding: 16,
+    borderTopColor: Colors.neutral[100],
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
@@ -568,91 +872,318 @@ const styles = StyleSheet.create({
     shadowRadius: 3.84,
     elevation: 5,
   },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing[2],
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[3],
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.neutral[100],
+  },
+  actionButtonText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: '#2196F3',
+  },
+  deleteButton: {
+    backgroundColor: 'rgba(244, 67, 54, 0.1)',
+  },
+  deleteButtonText: {
+    color: '#F44336',
+  },
+
+  // Application Cards
+  applicationCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: Spacing[4],
+    marginVertical: Spacing[2],
+    padding: Spacing[4],
+    borderRadius: BorderRadius.xl,
+    ...Shadows.base,
+  },
   applicationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: Spacing[3],
   },
   applicationJobTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
     flex: 1,
-    marginRight: 8,
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: Colors.neutral[900],
+    marginRight: Spacing[2],
   },
   applicationStatusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[1],
+    borderRadius: BorderRadius.full,
   },
   applicationStatusText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: 'bold',
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   applicationDetails: {
-    marginBottom: 12,
+    gap: Spacing[2],
   },
   workerName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: Colors.neutral[900],
   },
   workerRating: {
-    fontSize: 14,
-    color: '#FF9800',
-    marginBottom: 4,
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium as any,
+    color: Colors.neutral[600],
   },
   proposedRate: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-    marginBottom: 4,
-  },
-  applicationDate: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: '#11998E',
   },
   applicationMessage: {
-    fontSize: 14,
-    color: '#444',
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
     lineHeight: 20,
   },
   applicationActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: Spacing[2],
+    marginTop: Spacing[3],
+  },
+
+  // Booking Cards
+  bookingCard: {
+    backgroundColor: '#FFFFFF',
+    marginHorizontal: Spacing[4],
+    marginVertical: Spacing[2],
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.base,
+  },
+  bookingContent: {
+    padding: Spacing[4],
+  },
+  bookingTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: Colors.neutral[900],
+    marginBottom: Spacing[2],
+  },
+  bookingInfo: {
+    gap: Spacing[2],
+  },
+  bookingInfoRow: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    gap: Spacing[2],
+  },
+  bookingInfoText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
+  },
+  bookingRate: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: '#11998E',
+  },
+  reviewButton: {
+    marginTop: Spacing[2],
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[3],
+    backgroundColor: Colors.primary[50],
+    borderRadius: BorderRadius.lg,
+    alignItems: 'center',
+  },
+  reviewButtonText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: Colors.primary[500],
+  },
+  trackText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[500],
+    textAlign: 'center',
+    marginTop: Spacing[2],
+  },
+
+  // Empty States
+  emptyContainer: {
+    flexGrow: 1,
+  },
+  emptyState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: Spacing[6],
+  },
+  emptyIconBadge: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: 'rgba(17, 153, 142, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing[4],
+  },
+  emptyTitle: {
+    fontSize: Typography.fontSize['2xl'],
+    fontWeight: Typography.fontWeight.bold as any,
+    color: Colors.neutral[900],
+    marginBottom: Spacing[2],
+    textAlign: 'center',
+  },
+  emptySubtitle: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[600],
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: Spacing[4],
+    maxWidth: 300,
+  },
+  postJobButton: {
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.lg,
+  },
+  postJobButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing[2],
+    paddingVertical: Spacing[3],
+    paddingHorizontal: Spacing[5],
+  },
+  postJobButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: '#FFFFFF',
+  },
+  browseJobsButton: {
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.lg,
+  },
+  browseJobsButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing[2],
+    paddingVertical: Spacing[3],
+    paddingHorizontal: Spacing[5],
+  },
+  browseJobsButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: '#FFFFFF',
+  },
+  applicationDate: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
   },
   viewJobButton: {
-    backgroundColor: '#f0f8ff',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[2],
+    backgroundColor: Colors.primary[50],
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
-    borderColor: '#2196F3',
+    borderColor: Colors.primary[500],
   },
   viewJobButtonText: {
-    color: '#2196F3',
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: Colors.primary[500],
   },
   withdrawButton: {
-    backgroundColor: '#fff5f5',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[2],
+    backgroundColor: '#FFEBEE',
+    borderRadius: BorderRadius.lg,
     borderWidth: 1,
     borderColor: '#F44336',
   },
   withdrawButtonText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold as any,
     color: '#F44336',
-    fontSize: 14,
-    fontWeight: '500',
+  },
+  acceptButton: {
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[2],
+    backgroundColor: '#E8F5E9',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.primary[600],
+  },
+  acceptButtonText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: Colors.primary[600],
+  },
+  rejectButton: {
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[2],
+    backgroundColor: '#FFEBEE',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: '#F44336',
+  },
+  rejectButtonText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: '#F44336',
+  },
+  bookingHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing[3],
+  },
+  statusBadge: {
+    paddingHorizontal: Spacing[2],
+    paddingVertical: Spacing[1],
+    borderRadius: BorderRadius.full,
+  },
+  statusText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: '#FFFFFF',
+  },
+  bookingDetails: {
+    gap: Spacing[2],
+  },
+  bookingPartner: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: Colors.neutral[900],
+  },
+  bookingDate: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+  },
+  bookingActions: {
+    marginTop: Spacing[3],
+    paddingTop: Spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutral[200],
+  },
+  reviewedIndicator: {
+    paddingVertical: Spacing[2],
+    paddingHorizontal: Spacing[4],
+    backgroundColor: '#E8F5E9',
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.primary[600],
+    alignSelf: 'center',
+  },
+  reviewedText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: Colors.primary[600],
   },
 });

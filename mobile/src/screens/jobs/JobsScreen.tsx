@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,13 @@ import {
   TouchableOpacity,
   RefreshControl,
   Alert,
+  StatusBar,
+  Dimensions,
+  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@/types/navigation';
 import { useSelector } from 'react-redux';
@@ -19,9 +24,13 @@ import { apiService } from '@/services/api';
 import { JobCard } from '@/components/jobs/JobCard';
 import { JobSearchBar } from '@/components/jobs/JobSearchBar';
 import { JobFiltersAdvanced } from '@/components/jobs/JobFiltersAdvanced';
+import { Gradients, Colors, Spacing, BorderRadius, Typography, Shadows } from '@/styles/DesignSystem';
 import { useLocation } from '@/hooks/useLocation';
 import { locationService } from '@/services/location';
 import { ErrorHandler } from '@/utils/errorHandler';
+import { ModernCard } from '@/components/ui/ModernCard';
+
+const { width, height } = Dimensions.get('window');
 
 type JobsScreenNavigationProp = StackNavigationProp<JobsStackParamList, 'JobsList'>;
 
@@ -30,11 +39,18 @@ export default function JobsScreen() {
   const { user } = useSelector((state: RootState) => state.auth);
   
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [clientReviewCounts, setClientReviewCounts] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filters, setFilters] = useState<JobFilters>({});
   const [showFilters, setShowFilters] = useState(false);
+
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const statsCardsAnim = useRef(new Animated.Value(0)).current;
 
   const isWorker = user?.role === 'worker';
   const isClient = user?.role === 'client';
@@ -57,36 +73,8 @@ export default function JobsScreen() {
         ...(searchQuery && { search: searchQuery }),
       });
 
-      // Calculate distances and add coordinates for jobs
-      const jobsWithLocation = await Promise.all(
-        response.map(async (job) => {
-          let jobWithCoords = { ...job };
-          
-          // If job doesn't have coordinates, try to geocode the location
-          if (!job.latitude || !job.longitude) {
-            try {
-              const geocodeResult = await locationService.geocodeAddress(job.location);
-              if (geocodeResult) {
-                jobWithCoords.latitude = geocodeResult.coordinates.latitude;
-                jobWithCoords.longitude = geocodeResult.coordinates.longitude;
-              }
-            } catch (error) {
-              console.warn('Failed to geocode job location:', job.location);
-            }
-          }
-          
-          // Calculate distance if user location is available
-          if (currentLocation && jobWithCoords.latitude && jobWithCoords.longitude) {
-            const distance = locationService.calculateDistance(
-              currentLocation,
-              { latitude: jobWithCoords.latitude, longitude: jobWithCoords.longitude }
-            );
-            jobWithCoords.distance = distance;
-          }
-          
-          return jobWithCoords;
-        })
-      );
+      // TEMPORARY: Skip location processing to debug rendering issue
+      const jobsWithLocation = response;
 
       // Filter by radius if specified
       let filteredJobs = jobsWithLocation;
@@ -99,6 +87,9 @@ export default function JobsScreen() {
       }
 
       setJobs(filteredJobs);
+      
+      // Fetch review counts for clients in background
+      fetchClientReviewCounts(filteredJobs);
     } catch (error) {
       ErrorHandler.handle(error);
     } finally {
@@ -106,11 +97,66 @@ export default function JobsScreen() {
     }
   }, [filters, searchQuery, currentLocation]);
 
+  const fetchClientReviewCounts = async (jobsList: Job[]) => {
+    try {
+      const clientIds = [...new Set(jobsList.map(job => job.clientId))];
+      const reviewCounts: Record<number, number> = {};
+      
+      // Fetch review counts for each unique client
+      await Promise.all(
+        clientIds.map(async (clientId) => {
+          try {
+            const count = await apiService.getUserReviewCount(clientId);
+            reviewCounts[clientId] = count;
+          } catch (error) {
+            console.log(`Failed to fetch review count for client ${clientId}`);
+            reviewCounts[clientId] = 0;
+          }
+        })
+      );
+      
+      setClientReviewCounts(reviewCounts);
+    } catch (error) {
+      console.log('Failed to fetch client review counts:', error);
+    }
+  };
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchJobs();
     setRefreshing(false);
   }, [fetchJobs]);
+
+  useEffect(() => {
+    // Start animations
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 700,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Delayed animation for stats cards
+    setTimeout(() => {
+      Animated.spring(statsCardsAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 100,
+        friction: 8,
+      }).start();
+    }, 300);
+  }, []);
 
   useEffect(() => {
     if (isWorker && hasPermission && !currentLocation) {
@@ -124,6 +170,14 @@ export default function JobsScreen() {
 
   const handleJobPress = (jobId: number) => {
     navigation.navigate('JobDetail', { jobId });
+  };
+
+  const handleClientPress = (clientId: number) => {
+    // Navigate within the Jobs stack to view the client's profile
+    navigation.navigate('UserProfileView', { 
+      userId: clientId, 
+      userType: 'client' 
+    });
   };
 
   const handleSearch = (query: string) => {
@@ -154,23 +208,42 @@ export default function JobsScreen() {
     }
   };
 
+  // Calculate stats
+  const totalJobs = jobs.length;
+  const appliedJobs = jobs.filter(j => j.applicationsCount && j.applicationsCount > 0).length;
+  const activeJobs = jobs.filter(j => j.status === 'open').length;
+  const completedJobs = jobs.filter(j => j.status === 'completed').length;
+  const successRate = totalJobs > 0 ? Math.round((completedJobs / totalJobs) * 100) : 0;
+
   const hasActiveFilters = Object.keys(filters).length > 0;
 
-  const renderJob = ({ item }: { item: Job }) => (
-    <JobCard
-      job={item}
-      onPress={handleJobPress}
-      showDistance={isWorker}
-      showApplicationsCount={isClient}
-    />
+  const renderJob = ({ item, index }: { item: Job; index: number }) => (
+    <View style={styles.jobCardWrapper}>
+      <JobCard
+        job={item}
+        onPress={handleJobPress}
+        onClientPress={handleClientPress}
+        showDistance={isWorker}
+        showApplicationsCount={isClient}
+        clientReviewCount={clientReviewCounts[item.clientId] || 0}
+        currentUserId={user?.id}
+      />
+    </View>
   );
 
   const renderEmptyState = () => (
-    <View style={styles.emptyState}>
-      <Text style={styles.emptyTitle}>
+    <View style={styles.emptyStateContainer}>
+      <View style={styles.emptyStateIcon}>
+        <Ionicons 
+          name={isWorker ? "briefcase-outline" : "folder-open-outline"} 
+          size={60} 
+          color={Colors.neutral[300]} 
+        />
+      </View>
+      <Text style={styles.emptyStateText}>
         {searchQuery || hasActiveFilters ? 'No jobs found' : 'No jobs available'}
       </Text>
-      <Text style={styles.emptySubtitle}>
+      <Text style={styles.emptyStateSubtext}>
         {searchQuery || hasActiveFilters
           ? 'Try adjusting your search or filters'
           : isWorker
@@ -180,92 +253,214 @@ export default function JobsScreen() {
       </Text>
       {isClient && !searchQuery && !hasActiveFilters && (
         <TouchableOpacity
-          style={styles.postJobButton}
+          style={styles.emptyStateButton}
           onPress={() => navigation.navigate('JobPost')}
         >
-          <Text style={styles.postJobButtonText}>Post a Job</Text>
+          <LinearGradient
+            colors={isWorker ? ['#4776E6', '#8E54E9'] : ['#11998E', '#38EF7D']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.emptyStateButtonGradient}
+          >
+            <Ionicons name="add-circle-outline" size={20} color="#FFFFFF" style={{ marginRight: 8 }} />
+            <Text style={styles.emptyStateButtonText}>Post a Job</Text>
+          </LinearGradient>
         </TouchableOpacity>
       )}
     </View>
   );
 
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <View style={styles.titleContainer}>
-        <Text style={styles.title}>
-          {isWorker ? 'Find Jobs' : 'My Jobs'}
-        </Text>
-        <Text style={styles.subtitle}>
-          {jobs.length} {jobs.length === 1 ? 'job' : 'jobs'} available
-        </Text>
-      </View>
-      
-      <View style={styles.headerActions}>
-        {isWorker && (
-          <TouchableOpacity
-            style={styles.mapButton}
-            onPress={switchToMapView}
-          >
-            <Text style={styles.mapButtonText}>🗺️ Map</Text>
-          </TouchableOpacity>
-        )}
-        
-        {isClient && (
-          <>
-            <TouchableOpacity
-              style={styles.postButton}
-              onPress={() => navigation.navigate('JobPost')}
-            >
-              <Text style={styles.postButtonText}>Post Job</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.manageButton}
-              onPress={() => navigation.navigate('JobManagement')}
-            >
-              <Text style={styles.manageButtonText}>Manage</Text>
-            </TouchableOpacity>
-          </>
-        )}
-      </View>
-    </View>
-  );
-
   return (
-    <SafeAreaView style={styles.container}>
-      <JobSearchBar
-        onSearch={handleSearch}
-        onFilterPress={() => setShowFilters(true)}
-        hasActiveFilters={hasActiveFilters}
-        placeholder={isWorker ? 'Search jobs...' : 'Search my jobs...'}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      
+      {/* Background Gradient */}
+      <LinearGradient
+        colors={isWorker ? ['#4776E6', '#8E54E9', '#667EEA'] : ['#11998E', '#38EF7D', '#06B49A']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.backgroundGradient}
       />
 
-      {/* Location Access Prompt for Workers */}
-      {isWorker && !hasPermission && (
-        <View style={styles.locationPrompt}>
-          <Text style={styles.locationPromptText}>
-            Enable location access to see nearby jobs and distances
-          </Text>
-          <TouchableOpacity
-            style={styles.locationPromptButton}
-            onPress={requestLocationAccess}
+      {/* Decorative Elements */}
+      <View style={styles.decorativeContainer}>
+        <View style={[styles.decorativeCircle, styles.circle1]} />
+        <View style={[styles.decorativeCircle, styles.circle2]} />
+        <View style={[styles.decorativeCircle, styles.circle3]} />
+        <View style={[styles.decorativeCircle, styles.circle4]} />
+      </View>
+
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        {/* Header Section */}
+        <Animated.View
+          style={[
+            styles.headerSection,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+            },
+          ]}
+        >
+          <View style={styles.headerTop}>
+            <View style={styles.headerTitleContainer}>
+              <View style={styles.headerIconBadge}>
+                <LinearGradient
+                  colors={['#FFFFFF', '#F8F9FA']}
+                  style={styles.headerIconGradient}
+                >
+                  <Ionicons 
+                    name={isWorker ? "briefcase" : "folder-open"} 
+                    size={28} 
+                    color={isWorker ? '#4776E6' : '#11998E'} 
+                  />
+                </LinearGradient>
+              </View>
+              <View>
+                <Text style={styles.headerTitle}>
+                  {isWorker ? 'Find Your Next Job' : 'Manage Your Jobs'}
+                </Text>
+                <Text style={styles.headerSubtitle}>
+                  {totalJobs} {totalJobs === 1 ? 'opportunity' : 'opportunities'} available
+                </Text>
+              </View>
+            </View>
+
+            {/* Action Buttons */}
+            <View style={styles.headerActions}>
+              {isWorker && (
+                <TouchableOpacity style={styles.headerActionButton} onPress={switchToMapView}>
+                  <Ionicons name="map-outline" size={22} color="#FFFFFF" />
+                </TouchableOpacity>
+              )}
+              {isClient && (
+                <TouchableOpacity 
+                  style={[styles.headerActionButton, styles.primaryActionButton]} 
+                  onPress={() => navigation.navigate('JobPost')}
+                >
+                  <Ionicons name="add" size={24} color="#FFFFFF" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity style={styles.headerActionButton} onPress={() => navigation.navigate('JobManagement')}>
+                <Ionicons name="list" size={22} color="#FFFFFF" />
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* Stats Cards */}
+          <Animated.View
+            style={[
+              styles.statsContainer,
+              {
+                opacity: statsCardsAnim,
+                transform: [
+                  {
+                    scale: statsCardsAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.8, 1],
+                    }),
+                  },
+                ],
+              },
+            ]}
           >
-            <Text style={styles.locationPromptButtonText}>Enable Location</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+            <View style={styles.statsGrid}>
+              <View style={styles.statCard}>
+                <View style={[styles.statIconContainer, { backgroundColor: 'rgba(71, 118, 230, 0.2)' }]}>
+                  <Ionicons name="briefcase" size={20} color="#FFFFFF" />
+                </View>
+                <Text style={styles.statValue}>{totalJobs}</Text>
+                <Text style={styles.statLabel}>Total</Text>
+              </View>
 
-      <FlatList
-        data={jobs}
-        renderItem={renderJob}
-        keyExtractor={(item) => item.id.toString()}
-        ListHeaderComponent={renderHeader}
-        ListEmptyComponent={!loading ? renderEmptyState : null}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={jobs.length === 0 ? styles.emptyContainer : undefined}
-      />
+              <View style={styles.statCard}>
+                <View style={[styles.statIconContainer, { backgroundColor: 'rgba(56, 239, 125, 0.2)' }]}>
+                  <Ionicons name={isClient ? "list" : "checkmark-circle"} size={20} color="#FFFFFF" />
+                </View>
+                <Text style={styles.statValue}>{isClient ? activeJobs : appliedJobs}</Text>
+                <Text style={styles.statLabel}>{isClient ? 'Active' : 'Applied'}</Text>
+              </View>
+
+              <View style={styles.statCard}>
+                <View style={[styles.statIconContainer, { backgroundColor: 'rgba(255, 159, 67, 0.2)' }]}>
+                  <Ionicons name="pulse" size={20} color="#FFFFFF" />
+                </View>
+                <Text style={styles.statValue}>{activeJobs}</Text>
+                <Text style={styles.statLabel}>Open</Text>
+              </View>
+
+              <View style={styles.statCard}>
+                <View style={[styles.statIconContainer, { backgroundColor: 'rgba(102, 126, 234, 0.2)' }]}>
+                  <Ionicons name="trending-up" size={20} color="#FFFFFF" />
+                </View>
+                <Text style={styles.statValue}>{successRate}%</Text>
+                <Text style={styles.statLabel}>Rate</Text>
+              </View>
+            </View>
+          </Animated.View>
+        </Animated.View>
+
+        {/* Content Section */}
+        <View style={styles.contentSection}>
+          <ModernCard variant="elevated" style={styles.mainContentCard}>
+            {/* Search Bar */}
+            <View style={styles.searchContainer}>
+              <JobSearchBar
+                onSearch={handleSearch}
+                onFilterPress={() => setShowFilters(true)}
+                hasActiveFilters={hasActiveFilters}
+                placeholder={isWorker ? 'Search jobs...' : 'Search my jobs...'}
+              />
+            </View>
+
+            {/* Location Access Prompt for Workers */}
+            {isWorker && !hasPermission && (
+              <ModernCard variant="outlined" style={styles.locationPrompt}>
+                <View style={styles.locationPromptContent}>
+                  <View style={styles.locationPromptIcon}>
+                    <Ionicons name="location" size={24} color={Colors.primary[500]} />
+                  </View>
+                  <View style={styles.locationPromptTextContainer}>
+                    <Text style={styles.locationPromptTitle}>Enable Location</Text>
+                    <Text style={styles.locationPromptText}>
+                      Find nearby jobs and see accurate distances
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.locationPromptButton}
+                    onPress={requestLocationAccess}
+                  >
+                    <LinearGradient
+                      colors={['#4776E6', '#8E54E9']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.locationPromptButtonGradient}
+                    >
+                      <Text style={styles.locationPromptButtonText}>Enable</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </ModernCard>
+            )}
+
+            {/* Jobs List */}
+            <FlatList
+              data={jobs}
+              renderItem={renderJob}
+              keyExtractor={(item) => item.id.toString()}
+              ListEmptyComponent={!loading ? renderEmptyState : null}
+              refreshControl={
+                <RefreshControl 
+                  refreshing={refreshing} 
+                  onRefresh={handleRefresh}
+                  tintColor={isWorker ? '#4776E6' : '#11998E'}
+                />
+              }
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={jobs.length === 0 ? styles.emptyContainer : styles.listContent}
+            />
+          </ModernCard>
+        </View>
+      </SafeAreaView>
 
       <JobFiltersAdvanced
         visible={showFilters}
@@ -274,136 +469,296 @@ export default function JobsScreen() {
         initialFilters={filters}
         userRole={user?.role || 'worker'}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: Colors.neutral[50],
   },
-  header: {
+  
+  // Background
+  backgroundGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    height: height * 0.5,
+  },
+  
+  // Decorative Elements
+  decorativeContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: height * 0.5,
+    overflow: 'hidden',
+  },
+  decorativeCircle: {
+    position: 'absolute',
+    borderRadius: 1000,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  circle1: {
+    width: 200,
+    height: 200,
+    top: -50,
+    right: -50,
+  },
+  circle2: {
+    width: 150,
+    height: 150,
+    top: 100,
+    left: -40,
+  },
+  circle3: {
+    width: 100,
+    height: 100,
+    top: 50,
+    right: 100,
+  },
+  circle4: {
+    width: 120,
+    height: 120,
+    top: 180,
+    right: 50,
+  },
+  
+  safeArea: {
+    flex: 1,
+  },
+  
+  // Header Section
+  headerSection: {
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
+    paddingBottom: Spacing[4],
+  },
+  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
-    backgroundColor: '#fff',
-    marginBottom: 8,
+    marginBottom: Spacing[4],
   },
-  titleContainer: {
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+  headerIconBadge: {
+    width: 56,
+    height: 56,
+    marginRight: Spacing[3],
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.lg,
   },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 2,
+  headerIconGradient: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize['2xl'],
+    fontWeight: Typography.fontWeight.bold as any,
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium as any,
+    color: 'rgba(255, 255, 255, 0.9)',
   },
   headerActions: {
     flexDirection: 'row',
-    gap: 8,
+    gap: Spacing[2],
   },
-  postButton: {
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+  headerActionButton: {
+    width: 44,
+    height: 44,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...Shadows.sm,
   },
-  postButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
+  primaryActionButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
   },
-  manageButton: {
-    backgroundColor: '#f5f5f5',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
+  
+  // Stats Cards
+  statsContainer: {
+    marginTop: Spacing[2],
   },
-  manageButtonText: {
-    color: '#666',
-    fontSize: 14,
-    fontWeight: '500',
+  statsGrid: {
+    flexDirection: 'row',
+    gap: Spacing[3],
   },
-  mapButton: {
-    backgroundColor: '#4CAF50',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
+  statCard: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: Spacing[3],
+    paddingHorizontal: Spacing[2],
+    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    borderRadius: BorderRadius.lg,
   },
-  mapButtonText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
+  statIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing[2],
   },
+  statValue: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.medium as any,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  
+  // Content Section
+  contentSection: {
+    flex: 1,
+  },
+  mainContentCard: {
+    flex: 1,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    backgroundColor: Colors.neutral[50],
+    paddingTop: Spacing[5],
+    marginTop: -Spacing[4],
+  },
+  
+  // Search Bar
+  searchContainer: {
+    paddingHorizontal: Spacing[4],
+    marginBottom: Spacing[3],
+    paddingTop: Spacing[1],
+  },
+  
+  // Location Prompt
   locationPrompt: {
-    backgroundColor: '#FFF3CD',
-    borderColor: '#FFEAA7',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    margin: 16,
+    marginHorizontal: Spacing[4],
+    marginBottom: Spacing[3],
+    backgroundColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+  },
+  locationPromptContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    padding: Spacing[3],
+  },
+  locationPromptIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.full,
+    backgroundColor: '#FEF3C7',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Spacing[3],
+  },
+  locationPromptTextContainer: {
+    flex: 1,
+  },
+  locationPromptTitle: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: '#92400E',
+    marginBottom: 2,
   },
   locationPromptText: {
-    flex: 1,
-    fontSize: 14,
-    color: '#856404',
-    marginRight: 12,
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.normal as any,
+    color: '#B45309',
   },
   locationPromptButton: {
-    backgroundColor: '#FFC107',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+  },
+  locationPromptButtonGradient: {
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[2],
   },
   locationPromptButtonText: {
-    color: '#856404',
-    fontSize: 12,
-    fontWeight: 'bold',
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: '#FFFFFF',
+  },
+  
+  // Job Cards
+  jobCardWrapper: {
+    marginBottom: Spacing[3],
+  },
+  
+  // List Content
+  listContent: {
+    paddingHorizontal: Spacing[4],
+    paddingBottom: Spacing[6],
   },
   emptyContainer: {
     flexGrow: 1,
-  },
-  emptyState: {
-    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[6],
   },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 8,
+  
+  // Empty State
+  emptyStateContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing[6],
+    paddingHorizontal: Spacing[4],
+  },
+  emptyStateIcon: {
+    width: 120,
+    height: 120,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.neutral[100],
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing[4],
+    ...Shadows.base,
+  },
+  emptyStateText: {
+    fontSize: Typography.fontSize['2xl'],
+    fontWeight: Typography.fontWeight.bold as any,
+    color: Colors.neutral[900],
+    marginBottom: Spacing[2],
     textAlign: 'center',
   },
-  emptySubtitle: {
-    fontSize: 16,
-    color: '#666',
+  emptyStateSubtext: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.normal as any,
+    color: Colors.neutral[600],
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: Spacing[5],
+    lineHeight: 24,
   },
-  postJobButton: {
-    backgroundColor: '#2196F3',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 25,
+  emptyStateButton: {
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    ...Shadows.lg,
   },
-  postJobButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+  emptyStateButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Spacing[6],
+    paddingVertical: Spacing[3],
+  },
+  emptyStateButtonText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: '#FFFFFF',
   },
 });

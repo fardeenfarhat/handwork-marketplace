@@ -114,104 +114,92 @@ const JobOversight: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const statusClasses: { [key: string]: string } = {
-      open: 'status-pending',
-      assigned: 'status-active',
-      in_progress: 'status-active',
-      completed: 'status-completed',
-      cancelled: 'status-inactive',
+      open: 'open',
+      assigned: 'pending',
+      in_progress: 'in_progress',
+      completed: 'completed',
+      cancelled: 'inactive',
     };
 
     return (
-      <span className={`status-badge ${statusClasses[status] || 'status-pending'}`}>
-        {status.replace('_', ' ').toUpperCase()}
+      <span className={`status-badge ${statusClasses[status] || 'pending'}`}>
+        {status.replace('_', ' ').charAt(0).toUpperCase() + status.replace('_', ' ').slice(1)}
       </span>
     );
   };
 
-  const renderPagination = () => {
-    const pages = [];
-    const maxVisiblePages = 5;
-    const startPage = Math.max(1, pagination.page - Math.floor(maxVisiblePages / 2));
-    const endPage = Math.min(pagination.pages, startPage + maxVisiblePages - 1);
 
-    for (let i = startPage; i <= endPage; i++) {
-      pages.push(
-        <button
-          key={i}
-          onClick={() => handlePageChange(i)}
-          className={pagination.page === i ? 'active' : ''}
-        >
-          {i}
-        </button>
-      );
-    }
-
-    return (
-      <div className="pagination">
-        <button
-          onClick={() => handlePageChange(pagination.page - 1)}
-          disabled={pagination.page === 1}
-        >
-          <i className="fas fa-chevron-left"></i>
-        </button>
-        {pages}
-        <button
-          onClick={() => handlePageChange(pagination.page + 1)}
-          disabled={pagination.page === pagination.pages}
-        >
-          <i className="fas fa-chevron-right"></i>
-        </button>
-      </div>
-    );
-  };
 
   return (
     <div className="content-section active">
-      {/* Filters */}
       <div className="section-header">
-        <div className="filters">
-          <select
-            value={filters.status}
-            onChange={(e) => handleFilterChange('status', e.target.value)}
-          >
-            <option value="">All Status</option>
-            <option value="open">Open</option>
-            <option value="assigned">Assigned</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
-          <select
-            value={filters.category}
-            onChange={(e) => handleFilterChange('category', e.target.value)}
-          >
-            <option value="">All Categories</option>
-            <option value="plumbing">Plumbing</option>
-            <option value="electrical">Electrical</option>
-            <option value="cleaning">Cleaning</option>
-            <option value="construction">Construction</option>
-            <option value="ac_repair">A/C Repair</option>
-          </select>
-          <input
-            type="number"
-            placeholder="Min Budget"
-            value={filters.min_budget}
-            onChange={(e) => handleFilterChange('min_budget', e.target.value)}
-          />
-          <input
-            type="number"
-            placeholder="Max Budget"
-            value={filters.max_budget}
-            onChange={(e) => handleFilterChange('max_budget', e.target.value)}
-          />
-          <input
-            type="text"
-            placeholder="Search jobs..."
-            value={filters.search}
-            onChange={(e) => handleFilterChange('search', e.target.value)}
-          />
-          <button onClick={applyFilters} className="btn btn-primary">
-            Apply
+        <h1 className="section-title">Job Oversight</h1>
+        <p className="section-subtitle">Monitor and manage all platform jobs</p>
+      </div>
+
+      {/* Filters */}
+      <div className="filters-section">
+        <div className="filters-grid">
+          <div className="filter-group">
+            <label>Status</label>
+            <select
+              value={filters.status}
+              onChange={(e) => handleFilterChange('status', e.target.value)}
+            >
+              <option value="">All Status</option>
+              <option value="open">Open</option>
+              <option value="assigned">Assigned</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Category</label>
+            <select
+              value={filters.category}
+              onChange={(e) => handleFilterChange('category', e.target.value)}
+            >
+              <option value="">All Categories</option>
+              <option value="plumbing">Plumbing</option>
+              <option value="electrical">Electrical</option>
+              <option value="cleaning">Cleaning</option>
+              <option value="construction">Construction</option>
+              <option value="ac_repair">A/C Repair</option>
+            </select>
+          </div>
+          <div className="filter-group">
+            <label>Min Budget</label>
+            <input
+              type="number"
+              placeholder="Min Budget"
+              value={filters.min_budget}
+              onChange={(e) => handleFilterChange('min_budget', e.target.value)}
+            />
+          </div>
+          <div className="filter-group">
+            <label>Max Budget</label>
+            <input
+              type="number"
+              placeholder="Max Budget"
+              value={filters.max_budget}
+              onChange={(e) => handleFilterChange('max_budget', e.target.value)}
+            />
+          </div>
+          <div className="filter-group">
+            <label>Search</label>
+            <input
+              type="text"
+              placeholder="Search jobs..."
+              value={filters.search}
+              onChange={(e) => handleFilterChange('search', e.target.value)}
+            />
+          </div>
+        </div>
+        <div className="filters-actions">
+          <button onClick={applyFilters} className="btn">
+            <i className="fas fa-search"></i>
+            Apply Filters
           </button>
         </div>
       </div>
@@ -225,7 +213,7 @@ const JobOversight: React.FC = () => {
         </div>
       ) : (
         <>
-          <div className="table-container">
+          <div className="data-table-container">
             <table className="data-table">
               <thead>
                 <tr>
@@ -242,11 +230,11 @@ const JobOversight: React.FC = () => {
               <tbody>
                 {jobs.map((job) => (
                   <tr key={job.id}>
-                    <td>{job.id}</td>
-                    <td>{job.title}</td>
+                    <td>#{job.id}</td>
+                    <td className="job-title">{job.title}</td>
                     <td>
                       <span className="status-badge">
-                        {job.category.replace('_', ' ').toUpperCase()}
+                        {job.category.replace('_', ' ').charAt(0).toUpperCase() + job.category.replace('_', ' ').slice(1)}
                       </span>
                     </td>
                     <td>{job.client_name}</td>
@@ -256,13 +244,15 @@ const JobOversight: React.FC = () => {
                     <td>{getStatusBadge(job.status)}</td>
                     <td>{formatDate(job.created_at)}</td>
                     <td>
-                      <button
-                        onClick={() => viewJobDetails(job)}
-                        className="btn btn-outline"
-                      >
-                        <i className="fas fa-eye"></i>
-                        View
-                      </button>
+                      <div className="action-buttons">
+                        <button
+                          onClick={() => viewJobDetails(job)}
+                          className="action-btn view"
+                        >
+                          <i className="fas fa-eye"></i>
+                          View
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -270,7 +260,42 @@ const JobOversight: React.FC = () => {
             </table>
           </div>
 
-          {renderPagination()}
+          <div className="pagination">
+            <div className="pagination-info">
+              Showing {(pagination.page - 1) * pagination.size + 1} to {Math.min(pagination.page * pagination.size, pagination.total)} of {pagination.total} jobs
+            </div>
+            <div className="pagination-controls">
+              <button
+                onClick={() => handlePageChange(pagination.page - 1)}
+                disabled={pagination.page === 1}
+                className="pagination-btn"
+              >
+                <i className="fas fa-chevron-left"></i>
+              </button>
+              {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
+                const page = i + Math.max(1, pagination.page - 2);
+                if (page <= pagination.pages) {
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => handlePageChange(page)}
+                      className={`pagination-btn ${pagination.page === page ? 'active' : ''}`}
+                    >
+                      {page}
+                    </button>
+                  );
+                }
+                return null;
+              })}
+              <button
+                onClick={() => handlePageChange(pagination.page + 1)}
+                disabled={pagination.page === pagination.pages}
+                className="pagination-btn"
+              >
+                <i className="fas fa-chevron-right"></i>
+              </button>
+            </div>
+          </div>
         </>
       )}
 
@@ -287,40 +312,42 @@ const JobOversight: React.FC = () => {
                 <i className="fas fa-times"></i>
               </button>
             </div>
-            <div className="modal-content">
-              <div className="form-group">
-                <label>Description:</label>
-                <p>{selectedJob.description}</p>
-              </div>
-              <div className="form-group">
-                <label>Category:</label>
-                <p>{selectedJob.category.replace('_', ' ').toUpperCase()}</p>
-              </div>
-              <div className="form-group">
-                <label>Budget Range:</label>
-                <p>{formatCurrency(selectedJob.budget_min)} - {formatCurrency(selectedJob.budget_max)}</p>
-              </div>
-              <div className="form-group">
-                <label>Status:</label>
-                <p>{getStatusBadge(selectedJob.status)}</p>
-              </div>
-              <div className="form-group">
-                <label>Client:</label>
-                <p>{selectedJob.client_name}</p>
-              </div>
-              {selectedJob.worker_name && (
-                <div className="form-group">
-                  <label>Worker:</label>
-                  <p>{selectedJob.worker_name}</p>
+            <div className="modal-body">
+              <div className="detail-card">
+                <div className="detail-row">
+                  <span className="detail-label">Description:</span>
+                  <span className="detail-value">{selectedJob.description}</span>
                 </div>
-              )}
-              <div className="form-group">
-                <label>Location:</label>
-                <p>{selectedJob.location}</p>
-              </div>
-              <div className="form-group">
-                <label>Created:</label>
-                <p>{formatDate(selectedJob.created_at)}</p>
+                <div className="detail-row">
+                  <span className="detail-label">Category:</span>
+                  <span className="detail-value">{selectedJob.category.replace('_', ' ').charAt(0).toUpperCase() + selectedJob.category.replace('_', ' ').slice(1)}</span>
+                </div>
+                <div className="detail-row">
+                  <span className="detail-label">Budget Range:</span>
+                  <span className="detail-value">{formatCurrency(selectedJob.budget_min)} - {formatCurrency(selectedJob.budget_max)}</span>
+                </div>
+                <div className="detail-row">
+                  <span className="detail-label">Status:</span>
+                  <span className="detail-value">{getStatusBadge(selectedJob.status)}</span>
+                </div>
+                <div className="detail-row">
+                  <span className="detail-label">Client:</span>
+                  <span className="detail-value">{selectedJob.client_name}</span>
+                </div>
+                {selectedJob.worker_name && (
+                  <div className="detail-row">
+                    <span className="detail-label">Worker:</span>
+                    <span className="detail-value">{selectedJob.worker_name}</span>
+                  </div>
+                )}
+                <div className="detail-row">
+                  <span className="detail-label">Location:</span>
+                  <span className="detail-value">{selectedJob.location}</span>
+                </div>
+                <div className="detail-row">
+                  <span className="detail-label">Created:</span>
+                  <span className="detail-value">{formatDate(selectedJob.created_at)}</span>
+                </div>
               </div>
             </div>
           </div>

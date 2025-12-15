@@ -53,8 +53,15 @@ const Dashboard: React.FC = () => {
       {/* Sidebar */}
       <nav className="sidebar">
         <div className="sidebar-header">
-          <i className="fas fa-tools"></i>
-          <span>Admin Panel</span>
+          <div className="sidebar-logo">
+            <div className="logo-circle">
+              <i className="fas fa-hammer"></i>
+            </div>
+            <div className="logo-text">
+              <h3>Handwork</h3>
+              <span>Admin Panel</span>
+            </div>
+          </div>
         </div>
         <ul className="sidebar-menu">
           {menuItems.map((item) => (
@@ -85,7 +92,7 @@ const Dashboard: React.FC = () => {
         <header className="content-header">
           <h1>{getPageTitle()}</h1>
           <div className="header-actions">
-            <button className="btn btn-outline">
+            <button className="btn btn-outline" onClick={() => window.location.reload()}>
               <i className="fas fa-sync-alt"></i>
               Refresh
             </button>

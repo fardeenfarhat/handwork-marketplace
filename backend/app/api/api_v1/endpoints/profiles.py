@@ -104,7 +104,7 @@ async def upload_profile_image(
 @router.post("/upload/portfolio-image")
 async def upload_portfolio_image(
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_verified_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Upload portfolio image (workers only)"""
@@ -116,7 +116,7 @@ async def upload_portfolio_image(
 async def upload_kyc_document(
     document_type: str = Form(...),
     file: UploadFile = File(...),
-    current_user: User = Depends(get_current_verified_user),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """Upload KYC document (workers only)"""
@@ -154,3 +154,93 @@ async def update_kyc_status(
     
     profile_service = get_profile_service(db)
     return profile_service.update_kyc_status(user_id, status_update)
+
+
+@router.post("/worker/bank-account")
+async def add_bank_account(
+    account_holder_name: str = Form(...),
+    bank_name: str = Form(...),
+    account_number: str = Form(...),
+    routing_number: str = Form(...),
+    bank_country: str = Form(default="US"),
+    bank_currency: str = Form(default="USD"),
+    current_user: User = Depends(get_current_verified_user),
+    db: Session = Depends(get_db)
+):
+    """Add or update worker's bank account details for payouts"""
+    if current_user.role != "worker":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only workers can add bank accounts"
+        )
+    
+    if not current_user.worker_profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Worker profile not found"
+        )
+    
+    # Update worker profile with bank account details
+    worker_profile = current_user.worker_profile
+    worker_profile.bank_account_holder_name = account_holder_name
+    worker_profile.bank_name = bank_name
+    worker_profile.bank_account_number = account_number  # In production, encrypt this!
+    worker_profile.bank_routing_number = routing_number
+    worker_profile.bank_country = bank_country
+    worker_profile.bank_currency = bank_currency
+    worker_profile.bank_account_verified = False  # Will be verified on first successful payout
+    
+    db.commit()
+    db.refresh(worker_profile)
+    
+    return {
+        "success": True,
+        "message": "Bank account added successfully",
+        "bank_details": {
+            "account_holder_name": account_holder_name,
+            "bank_name": bank_name,
+            "account_number_last4": account_number[-4:] if len(account_number) >= 4 else "****",
+            "bank_country": bank_country,
+            "bank_currency": bank_currency
+        }
+    }
+
+
+@router.get("/worker/bank-account")
+async def get_bank_account(
+    current_user: User = Depends(get_current_verified_user),
+    db: Session = Depends(get_db)
+):
+    """Get worker's bank account details (masked)"""
+    if current_user.role != "worker":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only workers can view bank accounts"
+        )
+    
+    if not current_user.worker_profile:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Worker profile not found"
+        )
+    
+    worker_profile = current_user.worker_profile
+    
+    if not worker_profile.bank_account_number:
+        return {
+            "has_bank_account": False,
+            "message": "No bank account added yet"
+        }
+    
+    return {
+        "has_bank_account": True,
+        "bank_details": {
+            "account_holder_name": worker_profile.bank_account_holder_name,
+            "bank_name": worker_profile.bank_name,
+            "account_number_last4": worker_profile.bank_account_number[-4:] if worker_profile.bank_account_number else None,
+            "routing_number_last4": worker_profile.bank_routing_number[-4:] if worker_profile.bank_routing_number else None,
+            "bank_country": worker_profile.bank_country,
+            "bank_currency": worker_profile.bank_currency,
+            "verified": worker_profile.bank_account_verified
+        }
+    }

@@ -1,174 +1,268 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Message } from '@/types';
-import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS } from '@/utils/constants';
-import { formatRelativeTime } from '@/utils/helpers';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Linking,
+  Alert,
+} from 'react-native';
+import { Message } from '../../services/FirebaseMessagingService';
+import { format } from 'date-fns';
 
 interface MessageBubbleProps {
   message: Message;
-  isOwnMessage: boolean;
-  onAttachmentPress?: (attachment: string) => void;
+  isCurrentUser: boolean;
+  onLongPress?: () => void;
 }
 
-export default function MessageBubble({ 
-  message, 
-  isOwnMessage, 
-  onAttachmentPress 
-}: MessageBubbleProps) {
+const MessageBubble: React.FC<MessageBubbleProps> = ({
+  message,
+  isCurrentUser,
+  onLongPress,
+}) => {
+  const handleAttachmentPress = (url: string, fileName: string) => {
+    Alert.alert(
+      'Open Attachment',
+      `Do you want to open ${fileName}?`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Open',
+          onPress: () => {
+            Linking.openURL(url).catch((error) => {
+              console.error('Error opening attachment:', error);
+              Alert.alert('Error', 'Could not open attachment');
+            });
+          },
+        },
+      ]
+    );
+  };
+
   const renderAttachments = () => {
     if (!message.attachments || message.attachments.length === 0) {
       return null;
     }
 
-    return message.attachments.map((attachment, index) => (
-      <TouchableOpacity
-        key={index}
-        style={styles.attachmentItem}
-        onPress={() => onAttachmentPress?.(attachment)}
-      >
-        {attachment.toLowerCase().match(/\.(jpg|jpeg|png|gif)$/) ? (
-          <Image 
-            source={{ uri: attachment }} 
-            style={styles.attachmentImage} 
-            testID="attachment-image"
-          />
-        ) : (
-          <View style={styles.fileAttachment}>
-            <Ionicons name="document" size={24} color={COLORS.primary} />
-            <Text style={styles.fileName} numberOfLines={1}>
-              {attachment.split('/').pop() || 'File'}
-            </Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    ));
+    return (
+      <View style={styles.attachmentsContainer}>
+        {message.attachments.map((attachment, index) => (
+          <TouchableOpacity
+            key={index}
+            style={styles.attachmentItem}
+            onPress={() => handleAttachmentPress(attachment.url, attachment.fileName)}
+          >
+            {attachment.type === 'image' ? (
+              <Image
+                source={{ uri: attachment.url }}
+                style={styles.attachmentImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.fileAttachment}>
+                <Text style={styles.fileIcon}>📄</Text>
+                <View style={styles.fileInfo}>
+                  <Text style={styles.fileName} numberOfLines={1}>
+                    {attachment.fileName}
+                  </Text>
+                  <Text style={styles.fileSize}>
+                    {formatFileSize(attachment.fileSize)}
+                  </Text>
+                </View>
+              </View>
+            )}
+          </TouchableOpacity>
+        ))}
+      </View>
+    );
+  };
+
+  const formatFileSize = (bytes: number): string => {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   return (
-    <View 
+    <TouchableOpacity
       style={[
         styles.container,
-        isOwnMessage ? styles.ownMessage : styles.otherMessage
+        isCurrentUser ? styles.currentUserContainer : styles.otherUserContainer,
       ]}
-      testID="message-container"
+      onLongPress={onLongPress}
+      activeOpacity={0.7}
     >
-      <View style={[
-        styles.bubble,
-        isOwnMessage ? styles.ownBubble : styles.otherBubble
-      ]}>
-        {message.content ? (
-          <Text style={[
-            styles.messageText,
-            isOwnMessage ? styles.ownMessageText : styles.otherMessageText
-          ]}>
+      <View
+        style={[
+          styles.bubble,
+          isCurrentUser ? styles.currentUserBubble : styles.otherUserBubble,
+        ]}
+      >
+        {message.isModerated && (
+          <View style={styles.moderationWarning}>
+            <Text style={styles.moderationText}>⚠️ This message was moderated</Text>
+          </View>
+        )}
+
+        {renderAttachments()}
+
+        {message.content && (
+          <Text
+            style={[
+              styles.messageText,
+              isCurrentUser ? styles.currentUserText : styles.otherUserText,
+            ]}
+          >
             {message.content}
           </Text>
-        ) : null}
-        
-        <View style={[styles.attachmentsContainer, { marginTop: message.content ? SPACING.sm : 0 }]}>
-          {renderAttachments()}
-        </View>
-        
+        )}
+
         <View style={styles.messageFooter}>
-          <Text style={[
-            styles.timestamp,
-            isOwnMessage ? styles.ownTimestamp : styles.otherTimestamp
-          ]}>
-            {formatRelativeTime(message.createdAt)}
+          <Text
+            style={[
+              styles.timestamp,
+              isCurrentUser ? styles.currentUserTimestamp : styles.otherUserTimestamp,
+            ]}
+          >
+            {format(message.timestamp, 'HH:mm')}
           </Text>
           
-          {isOwnMessage && (
-            <Ionicons
-              name={message.isRead ? "checkmark-done" : "checkmark"}
-              size={16}
-              color={message.isRead ? COLORS.primary : COLORS.textTertiary}
-              style={styles.readStatus}
-            />
+          {isCurrentUser && (
+            <Text
+              style={[
+                styles.readStatus,
+                message.isRead ? styles.readStatusRead : styles.readStatusUnread,
+              ]}
+            >
+              {message.isRead ? '✓✓' : '✓'}
+            </Text>
           )}
         </View>
       </View>
-    </View>
+    </TouchableOpacity>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: SPACING.xs,
-    paddingHorizontal: SPACING.lg,
+    marginVertical: 2,
+    paddingHorizontal: 4,
   },
-  ownMessage: {
+  currentUserContainer: {
     alignItems: 'flex-end',
   },
-  otherMessage: {
+  otherUserContainer: {
     alignItems: 'flex-start',
   },
   bubble: {
     maxWidth: '80%',
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.lg,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 1,
   },
-  ownBubble: {
-    backgroundColor: COLORS.primary,
+  currentUserBubble: {
+    backgroundColor: '#007AFF',
+    borderBottomRightRadius: 4,
   },
-  otherBubble: {
-    backgroundColor: COLORS.backgroundTertiary,
+  otherUserBubble: {
+    backgroundColor: '#fff',
+    borderBottomLeftRadius: 4,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
   },
-  messageText: {
-    fontSize: TYPOGRAPHY.fontSize.base,
-    lineHeight: TYPOGRAPHY.lineHeight.normal * TYPOGRAPHY.fontSize.base,
+  moderationWarning: {
+    backgroundColor: '#FFF3CD',
+    padding: 6,
+    borderRadius: 8,
+    marginBottom: 8,
   },
-  ownMessageText: {
-    color: COLORS.background,
-  },
-  otherMessageText: {
-    color: COLORS.textPrimary,
+  moderationText: {
+    fontSize: 12,
+    color: '#856404',
+    textAlign: 'center',
   },
   attachmentsContainer: {
-    marginTop: SPACING.sm,
+    marginBottom: 8,
   },
   attachmentItem: {
-    marginBottom: SPACING.xs,
+    marginBottom: 4,
   },
   attachmentImage: {
     width: 200,
     height: 150,
-    borderRadius: BORDER_RADIUS.md,
-    resizeMode: 'cover',
+    borderRadius: 8,
   },
   fileAttachment: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: SPACING.sm,
-    backgroundColor: COLORS.background,
-    borderRadius: BORDER_RADIUS.md,
+    backgroundColor: '#f8f9fa',
+    padding: 8,
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: '#e9ecef',
+  },
+  fileIcon: {
+    fontSize: 24,
+    marginRight: 8,
+  },
+  fileInfo: {
+    flex: 1,
   },
   fileName: {
-    marginLeft: SPACING.sm,
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.textPrimary,
-    flex: 1,
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+  },
+  fileSize: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  },
+  messageText: {
+    fontSize: 16,
+    lineHeight: 20,
+  },
+  currentUserText: {
+    color: '#fff',
+  },
+  otherUserText: {
+    color: '#333',
   },
   messageFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    marginTop: SPACING.xs,
+    marginTop: 4,
   },
   timestamp: {
-    fontSize: TYPOGRAPHY.fontSize.xs,
+    fontSize: 11,
+    marginRight: 4,
   },
-  ownTimestamp: {
-    color: COLORS.background,
-    opacity: 0.8,
+  currentUserTimestamp: {
+    color: 'rgba(255, 255, 255, 0.7)',
   },
-  otherTimestamp: {
-    color: COLORS.textTertiary,
+  otherUserTimestamp: {
+    color: '#666',
   },
   readStatus: {
-    marginLeft: SPACING.xs,
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  readStatusRead: {
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  readStatusUnread: {
+    color: 'rgba(255, 255, 255, 0.5)',
   },
 });
+
+export default MessageBubble;

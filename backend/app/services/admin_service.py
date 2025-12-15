@@ -7,11 +7,12 @@ from fastapi import HTTPException, status
 from app.db.models import (
     User, WorkerProfile, ClientProfile, Job, JobApplication, Booking, 
     Payment, PaymentDispute, Review, Notification, PaymentTransaction,
+    WorkerPayout,
     UserRole, JobStatus, PaymentStatus, ReviewStatus, DisputeStatus, KYCStatus
 )
 from app.schemas.admin import (
     UserOverview, UserDetail, JobOverview, JobDetail, PaymentOverview, PaymentDetail,
-    DisputeOverview, DisputeDetail, ReviewOverview, ReviewDetail, KYCDocument,
+    DisputeOverview, DisputeDetail, ReviewOverview, ReviewDetail, KYCDocument, KYCDocumentItem,
     PlatformMetrics, UserGrowthData, RevenueData, JobCategoryStats, TopPerformers,
     UserFilters, JobFilters, PaymentFilters, DisputeFilters, ReviewFilters
 )
@@ -384,6 +385,23 @@ class AdminService:
             worker_user = self.db.query(User).filter(User.id == worker_profile.user_id).first()
             worker_name = f"{worker_user.first_name} {worker_user.last_name}"
             
+            # Get associated worker payout if exists
+            # Look for payout that was created for THIS specific payment
+            # The payment_id is stored in payout_metadata JSON field
+            # Since SQLite doesn't have native JSON operators, we'll filter in Python
+            payouts = self.db.query(WorkerPayout).filter(
+                WorkerPayout.worker_id == booking.worker_id
+            ).all()
+            
+            payout = None
+            for p in payouts:
+                if p.payout_metadata and p.payout_metadata.get('payment_id') == payment.id:
+                    payout = p
+                    break
+            
+            payout_status = payout.status.value if payout else None
+            payout_id = payout.id if payout else None
+            
             payment_overviews.append(PaymentOverview(
                 id=payment.id,
                 booking_id=payment.booking_id,
@@ -395,7 +413,9 @@ class AdminService:
                 created_at=payment.created_at,
                 client_name=client_name,
                 worker_name=worker_name,
-                job_title=job.title
+                job_title=job.title,
+                payout_status=payout_status,
+                payout_id=payout_id
             ))
         
         return payment_overviews, total
@@ -663,12 +683,31 @@ class AdminService:
         for profile in profiles:
             user = profile.user
             documents = profile.kyc_documents or []
+            worker_name = f"{user.first_name} {user.last_name}"
             
+            # Process documents into structured format
+            document_items = []
+            for doc in documents:
+                if isinstance(doc, dict) and 'document_type' in doc and 'url' in doc:
+                    document_items.append(KYCDocumentItem(
+                        document_type=doc['document_type'],
+                        url=doc['url'],
+                        uploaded_at=doc.get('uploaded_at')
+                    ))
+                elif isinstance(doc, str):
+                    # Handle legacy format (just URLs)
+                    document_items.append(KYCDocumentItem(
+                        document_type="unknown",
+                        url=doc,
+                        uploaded_at=None
+                    ))
+            
+            # Create single entry per worker with all their documents
             kyc_documents.append(KYCDocument(
                 id=profile.id,
-                worker_name=f"{user.first_name} {user.last_name}",
+                worker_name=worker_name,
                 status=profile.kyc_status,
-                documents=documents,
+                documents=document_items,
                 submitted_at=profile.created_at
             ))
         

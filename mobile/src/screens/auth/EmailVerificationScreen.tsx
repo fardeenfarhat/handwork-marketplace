@@ -6,20 +6,27 @@ import {
   TouchableOpacity,
   Alert,
   TextInput,
+  Animated,
+  StatusBar,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useDispatch, useSelector } from 'react-redux';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { AuthStackParamList } from '@/types';
 import { AppDispatch, RootState } from '@/store';
 import { setEmailVerified } from '@/store/slices/authSlice';
 import { validateVerificationCode } from '@/utils/validation';
 import apiService from '@/services/api';
-import Button from '@/components/common/Button';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { ModernButton } from '@/components/ui/ModernButton';
+import { Colors, Typography, Spacing, BorderRadius, Shadows, Gradients } from '@/styles/DesignSystem';
 
 type EmailVerificationScreenNavigationProp = NativeStackNavigationProp<AuthStackParamList, 'EmailVerification'>;
 type EmailVerificationScreenRouteProp = RouteProp<AuthStackParamList, 'EmailVerification'>;
@@ -30,11 +37,7 @@ export default function EmailVerificationScreen() {
   const dispatch = useDispatch<AppDispatch>();
   const { user } = useSelector((state: RootState) => state.auth);
   
-  // Get email from route params or user state
   const email = route.params?.email || user?.email || '';
-  
-  console.log('📧 EMAIL VERIFICATION SCREEN: Component mounted');
-  console.log('📧 Email from params:', email);
   
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [fullToken, setFullToken] = useState('');
@@ -46,6 +49,51 @@ export default function EmailVerificationScreen() {
   const [canResend, setCanResend] = useState(false);
   
   const inputRefs = useRef<(TextInput | null)[]>([]);
+  
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    // Entrance animations
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Pulse animation for icon
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1500,
+          useNativeDriver: true,
+        }),
+      ])
+    ).start();
+  }, []);
 
   useEffect(() => {
     if (timer > 0) {
@@ -59,21 +107,18 @@ export default function EmailVerificationScreen() {
   }, [timer]);
 
   const handleCodeChange = (value: string, index: number) => {
-    if (value.length > 1) return; // Prevent multiple characters
+    if (value.length > 1) return;
     
-    // Clear any previous error
     setError('');
     
     const newCode = [...code];
     newCode[index] = value;
     setCode(newCode);
 
-    // Auto-focus next input
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
 
-    // Auto-submit when all fields are filled
     if (newCode.every(digit => digit !== '') && value) {
       handleVerifyEmail(newCode.join(''));
     }
@@ -88,15 +133,9 @@ export default function EmailVerificationScreen() {
   const handleVerifyEmail = async (verificationCode?: string) => {
     const codeToVerify = verificationCode || (useFullToken ? fullToken.trim() : code.join(''));
     
-    console.log('📧 EMAIL VERIFICATION: handleVerifyEmail called');
-    console.log('🔢 Code to verify:', codeToVerify);
-    console.log('🔄 Using full token mode:', useFullToken);
-    
-    // Skip validation for full token mode
     if (!useFullToken) {
       const validation = validateVerificationCode(codeToVerify);
       if (!validation.isValid) {
-        console.log('❌ Code validation failed:', validation.errors);
         Alert.alert('Invalid Code', validation.errors.code);
         return;
       }
@@ -107,41 +146,24 @@ export default function EmailVerificationScreen() {
       return;
     }
 
-    console.log('✅ Code validation passed');
     setIsLoading(true);
     try {
-      console.log('📞 Calling apiService.verifyEmail...');
       await apiService.verifyEmail(codeToVerify);
-      console.log('✅ Email verification API call successful');
-      
-      console.log('🔄 Dispatching setEmailVerified(true)...');
       dispatch(setEmailVerified(true));
-      console.log('✅ Email verified state updated');
       
       Alert.alert(
         'Email Verified',
         'Your email has been successfully verified!',
-        [
-          {
-            text: 'Continue',
-            onPress: () => {
-              console.log('🧭 Email verified - AppNavigator will handle navigation to onboarding');
-              // AppNavigator will automatically navigate to onboarding based on auth state
-            },
-          },
-        ]
+        [{ text: 'Continue', onPress: () => {} }]
       );
     } catch (error: any) {
-      console.log('💥 Email verification failed:', error);
       const errorMessage = error.message || 'Invalid verification code. Please try again.';
       setError(errorMessage);
       
-      // Show alert for critical errors, but use inline error for validation issues
       if (errorMessage.toLowerCase().includes('network') || errorMessage.toLowerCase().includes('server')) {
         Alert.alert('Verification Failed', errorMessage);
       }
       
-      // Clear the code on error
       if (useFullToken) {
         setFullToken('');
       } else {
@@ -161,8 +183,7 @@ export default function EmailVerificationScreen() {
     
     setIsResending(true);
     try {
-      const response = await apiService.resendVerification('email', email);
-      console.log('📧 RESEND RESPONSE:', JSON.stringify(response, null, 2));
+      await apiService.resendVerification('email', email);
       Alert.alert('Code Sent', 'A new verification code has been sent to your email.');
       setTimer(60);
       setCanResend(false);
@@ -180,318 +201,404 @@ export default function EmailVerificationScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => {
-              if (navigation.canGoBack()) {
-                navigation.goBack();
-              } else {
-                // If can't go back, navigate to login
-                navigation.navigate('Login');
-              }
-            }}
-          >
-            <Ionicons name="arrow-back" size={24} color="#333" />
-          </TouchableOpacity>
-          
-          <View style={styles.iconContainer}>
-            <Ionicons name="mail" size={48} color="#007AFF" />
-          </View>
-          
-          <Text style={styles.title}>Verify Your Email</Text>
-          <Text style={styles.subtitle}>
-            We've sent a 6-digit verification code to{'\n'}
-            <Text style={styles.email}>{email}</Text>
-          </Text>
-        </View>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={Colors.primary[500]} />
+      
+      {/* Background Gradient */}
+      <LinearGradient
+        colors={Gradients.orangeBlue}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.backgroundGradient}
+      />
 
-        {/* Code Input */}
-        <View style={styles.codeContainer}>
-          {!useFullToken ? (
-            <>
-              <View style={styles.codeInputs}>
-                {code.map((digit, index) => (
-                  <TextInput
-                    key={index}
-                    ref={ref => inputRefs.current[index] = ref}
-                    style={[
-                      styles.codeInput,
-                      digit ? styles.codeInputFilled : null,
-                      error ? styles.codeInputError : null,
-                    ]}
-                    value={digit}
-                    onChangeText={(value) => handleCodeChange(value, index)}
-                    onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
-                    keyboardType="numeric"
-                    maxLength={1}
-                    selectTextOnFocus
-                    autoFocus={index === 0}
-                  />
-                ))}
-              </View>
-              
-              <TouchableOpacity
-                style={styles.switchModeButton}
-                onPress={() => setUseFullToken(true)}
-              >
-                <Text style={styles.switchModeText}>
-                  Having trouble? Paste full token instead
-                </Text>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <TextInput
-                style={[styles.fullTokenInput, error ? styles.codeInputError : null]}
-                value={fullToken}
-                onChangeText={setFullToken}
-                placeholder="Paste your verification token here"
-                multiline
-                numberOfLines={3}
-                textAlignVertical="top"
-              />
-              
-              <TouchableOpacity
-                style={styles.switchModeButton}
-                onPress={() => {
-                  setUseFullToken(false);
-                  setFullToken('');
-                }}
-              >
-                <Text style={styles.switchModeText}>
-                  Use 6-digit code instead
-                </Text>
-              </TouchableOpacity>
-            </>
-          )}
-          
-          {error ? (
-            <Text style={styles.errorText}>{error}</Text>
-          ) : null}
-          
-          <Button
-            title="Verify Email"
-            onPress={() => handleVerifyEmail()}
-            loading={isLoading}
-            disabled={isLoading || (useFullToken ? !fullToken.trim() : code.some(digit => !digit))}
-            style={styles.verifyButton}
-          />
-        </View>
-
-        {/* Resend Code */}
-        <View style={styles.resendContainer}>
-          <Text style={styles.resendText}>Didn't receive the code?</Text>
-          
-          {canResend ? (
-            <TouchableOpacity
-              onPress={handleResendCode}
-              disabled={isResending}
-              style={styles.resendButton}
-            >
-              <Text style={styles.resendButtonText}>
-                {isResending ? 'Sending...' : 'Resend Code'}
-              </Text>
-            </TouchableOpacity>
-          ) : (
-            <Text style={styles.timerText}>
-              Resend in {formatTimer(timer)}
-            </Text>
-          )}
-        </View>
-
-        {/* Help */}
-        <View style={styles.helpContainer}>
-          <Text style={styles.helpText}>
-            Check your spam folder if you don't see the email
-          </Text>
-          
-          {/* Development Skip Button */}
-          {__DEV__ && (
-            <TouchableOpacity
-              onPress={() => {
-                console.log('🔧 DEV: Skipping email verification...');
-                dispatch(setEmailVerified(true));
-                Alert.alert(
-                  'Email Verified (DEV)',
-                  'Email verification skipped for development!',
-                  [
-                    {
-                      text: 'Continue',
-                      onPress: () => {
-                        console.log('🧭 DEV Email verified - AppNavigator will handle navigation to onboarding');
-                        // AppNavigator will automatically navigate to onboarding based on auth state
-                      },
-                    },
-                  ]
-                );
-              }}
-              style={styles.devSkipButton}
-            >
-              <Text style={styles.devSkipText}>
-                [DEV] Skip Verification
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
+      {/* Decorative Elements */}
+      <View style={styles.decorativeContainer}>
+        <View style={[styles.decorativeCircle, styles.circle1]} />
+        <View style={[styles.decorativeCircle, styles.circle2]} />
+        <View style={[styles.decorativeCircle, styles.circle3]} />
       </View>
 
-      {(isLoading || isResending) && (
-        <LoadingSpinner 
-          overlay 
-          text={isLoading ? 'Verifying...' : 'Sending code...'} 
-        />
+      <SafeAreaView style={styles.safeArea}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+        >
+          <ScrollView
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            <Animated.View
+              style={[
+                styles.content,
+                {
+                  opacity: fadeAnim,
+                  transform: [
+                    { translateY: slideAnim },
+                    { scale: scaleAnim },
+                  ],
+                },
+              ]}
+            >
+              {/* Back Button */}
+              <TouchableOpacity
+                style={styles.backButton}
+                onPress={() => {
+                  if (navigation.canGoBack()) {
+                    navigation.goBack();
+                  } else {
+                    navigation.navigate('Login');
+                  }
+                }}
+              >
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0.2)', 'rgba(255, 255, 255, 0.1)']}
+                  style={styles.backButtonGradient}
+                >
+                  <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                </LinearGradient>
+              </TouchableOpacity>
+
+              {/* Icon Container */}
+              <Animated.View 
+                style={[
+                  styles.iconContainer,
+                  { transform: [{ scale: pulseAnim }] }
+                ]}
+              >
+                <LinearGradient
+                  colors={['#FFFFFF', '#F8F9FA']}
+                  style={styles.iconGradient}
+                >
+                  <Ionicons name="mail" size={60} color={Colors.primary[500]} />
+                </LinearGradient>
+              </Animated.View>
+
+              {/* Title */}
+              <Text style={styles.title}>Verify Your Email</Text>
+              <Text style={styles.subtitle}>
+                We've sent a 6-digit code to
+              </Text>
+              <Text style={styles.email}>{email}</Text>
+
+              {/* Code Input Card */}
+              <View style={styles.cardContainer}>
+                <LinearGradient
+                  colors={['rgba(255, 255, 255, 0.95)', 'rgba(255, 255, 255, 0.9)']}
+                  style={styles.card}
+                >
+                  {!useFullToken ? (
+                    <>
+                      <View style={styles.codeInputs}>
+                        {code.map((digit, index) => (
+                          <TextInput
+                            key={index}
+                            ref={ref => inputRefs.current[index] = ref}
+                            style={[
+                              styles.codeInput,
+                              digit ? styles.codeInputFilled : null,
+                              error ? styles.codeInputError : null,
+                            ]}
+                            value={digit}
+                            onChangeText={(value) => handleCodeChange(value, index)}
+                            onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent.key, index)}
+                            keyboardType="numeric"
+                            maxLength={1}
+                            selectTextOnFocus
+                            autoFocus={index === 0}
+                          />
+                        ))}
+                      </View>
+
+                      {error ? (
+                        <View style={styles.errorContainer}>
+                          <Ionicons name="alert-circle" size={16} color={Colors.danger[500]} />
+                          <Text style={styles.errorText}>{error}</Text>
+                        </View>
+                      ) : null}
+
+                      <TouchableOpacity
+                        style={styles.switchModeButton}
+                        onPress={() => setUseFullToken(true)}
+                      >
+                        <Text style={styles.switchModeText}>
+                          Paste full token instead
+                        </Text>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <>
+                      <TextInput
+                        style={[styles.fullTokenInput, error ? styles.codeInputError : null]}
+                        value={fullToken}
+                        onChangeText={setFullToken}
+                        placeholder="Paste your verification token here"
+                        placeholderTextColor={Colors.neutral[400]}
+                        multiline
+                        numberOfLines={3}
+                        autoFocus
+                      />
+
+                      {error ? (
+                        <View style={styles.errorContainer}>
+                          <Ionicons name="alert-circle" size={16} color={Colors.danger[500]} />
+                          <Text style={styles.errorText}>{error}</Text>
+                        </View>
+                      ) : null}
+
+                      <TouchableOpacity
+                        style={styles.switchModeButton}
+                        onPress={() => setUseFullToken(false)}
+                      >
+                        <Text style={styles.switchModeText}>
+                          Use 6-digit code instead
+                        </Text>
+                      </TouchableOpacity>
+
+                      <ModernButton
+                        title="Verify Token"
+                        onPress={() => handleVerifyEmail()}
+                        loading={isLoading}
+                        style={styles.verifyButton}
+                      />
+                    </>
+                  )}
+                </LinearGradient>
+              </View>
+
+              {/* Resend Code */}
+              <View style={styles.resendContainer}>
+                <Text style={styles.resendText}>Didn't receive the code?</Text>
+                {canResend ? (
+                  <TouchableOpacity onPress={handleResendCode} disabled={isResending}>
+                    <LinearGradient
+                      colors={Gradients.primaryOrange}
+                      style={styles.resendButtonGradient}
+                    >
+                      <Text style={styles.resendButtonText}>
+                        {isResending ? 'Sending...' : 'Resend Code'}
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                ) : (
+                  <Text style={styles.timerText}>Resend in {formatTimer(timer)}</Text>
+                )}
+              </View>
+            </Animated.View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <LoadingSpinner />
+        </View>
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.background.primary,
+  },
+  backgroundGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  decorativeContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 400,
+  },
+  decorativeCircle: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  circle1: {
+    width: 250,
+    height: 250,
+    top: -100,
+    right: -80,
+  },
+  circle2: {
+    width: 180,
+    height: 180,
+    top: 150,
+    left: -50,
+  },
+  circle3: {
+    width: 120,
+    height: 120,
+    top: 300,
+    right: 80,
+  },
+  safeArea: {
+    flex: 1,
+  },
+  keyboardView: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingHorizontal: Spacing[5],
+    paddingTop: Spacing[4],
   },
   content: {
     flex: 1,
-    padding: 24,
-    justifyContent: 'center',
-  },
-  header: {
-    alignItems: 'center',
-    marginBottom: 40,
   },
   backButton: {
-    position: 'absolute',
-    left: -16,
-    top: -20,
-    padding: 8,
-    zIndex: 1,
+    width: 48,
+    height: 48,
+    marginBottom: Spacing[6],
+  },
+  backButtonGradient: {
+    width: 48,
+    height: 48,
+    borderRadius: BorderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#F0F8FF',
-    justifyContent: 'center',
+    alignSelf: 'center',
+    marginBottom: Spacing[5],
+  },
+  iconGradient: {
+    width: 120,
+    height: 120,
+    borderRadius: BorderRadius.full,
     alignItems: 'center',
-    marginBottom: 24,
+    justifyContent: 'center',
+    ...Shadows.xl,
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 12,
+    fontSize: Typography.fontSize['4xl'],
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
     textAlign: 'center',
+    marginBottom: Spacing[3],
   },
   subtitle: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: Typography.fontSize.base,
+    color: 'rgba(255, 255, 255, 0.9)',
     textAlign: 'center',
-    lineHeight: 24,
+    marginBottom: Spacing[1],
   },
   email: {
-    fontWeight: '600',
-    color: '#007AFF',
+    fontSize: Typography.fontSize.lg,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: Spacing[6],
   },
-  codeContainer: {
-    marginBottom: 32,
+  cardContainer: {
+    marginBottom: Spacing[6],
+  },
+  card: {
+    borderRadius: BorderRadius.xl,
+    padding: Spacing[6],
+    ...Shadows.lg,
   },
   codeInputs: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 32,
-    paddingHorizontal: 20,
+    marginBottom: Spacing[4],
   },
   codeInput: {
-    width: 45,
-    height: 55,
+    width: 50,
+    height: 60,
+    borderRadius: BorderRadius.lg,
     borderWidth: 2,
-    borderColor: '#E5E5EA',
-    borderRadius: 8,
+    borderColor: Colors.neutral[300],
+    backgroundColor: '#FFFFFF',
+    fontSize: Typography.fontSize['2xl'],
+    fontWeight: '700' as const,
+    color: Colors.neutral[900],
     textAlign: 'center',
-    fontSize: 24,
-    fontWeight: '600',
-    color: '#333',
   },
   codeInputFilled: {
-    borderColor: '#007AFF',
-    backgroundColor: '#F0F8FF',
+    borderColor: Colors.primary[500],
+    backgroundColor: Colors.primary[50],
   },
   codeInputError: {
-    borderColor: '#FF3B30',
-    backgroundColor: '#FFF5F5',
+    borderColor: Colors.danger[500],
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
+    marginBottom: Spacing[3],
+    paddingHorizontal: Spacing[2],
   },
   errorText: {
-    color: '#FF3B30',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 16,
+    flex: 1,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.danger[500],
+    fontWeight: '500' as const,
   },
   verifyButton: {
-    marginTop: 8,
+    marginTop: Spacing[3],
   },
   resendContainer: {
     alignItems: 'center',
-    marginBottom: 24,
+    gap: Spacing[3],
   },
   resendText: {
-    fontSize: 16,
-    color: '#666',
-    marginBottom: 8,
+    fontSize: Typography.fontSize.base,
+    color: 'rgba(255, 255, 255, 0.9)',
   },
-  resendButton: {
-    padding: 8,
+  resendButtonGradient: {
+    paddingHorizontal: Spacing[6],
+    paddingVertical: Spacing[3],
+    borderRadius: BorderRadius.lg,
   },
   resendButtonText: {
-    fontSize: 16,
-    color: '#007AFF',
-    fontWeight: '600',
+    fontSize: Typography.fontSize.base,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
   timerText: {
-    fontSize: 16,
-    color: '#8E8E93',
-  },
-  helpContainer: {
-    alignItems: 'center',
-  },
-  helpText: {
-    fontSize: 14,
-    color: '#8E8E93',
-    textAlign: 'center',
-  },
-  devSkipButton: {
-    marginTop: 20,
-    padding: 12,
-    backgroundColor: '#FF3B30',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  devSkipText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: Typography.fontSize.base,
+    fontWeight: '600' as const,
+    color: '#FFFFFF',
   },
   switchModeButton: {
-    marginVertical: 16,
     alignItems: 'center',
+    paddingVertical: Spacing[2],
   },
   switchModeText: {
-    fontSize: 14,
-    color: '#007AFF',
-    textDecorationLine: 'underline',
+    fontSize: Typography.fontSize.sm,
+    color: Colors.primary[500],
+    fontWeight: '600' as const,
   },
   fullTokenInput: {
+    borderRadius: BorderRadius.lg,
     borderWidth: 2,
-    borderColor: '#E5E5EA',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    color: '#333',
-    minHeight: 80,
-    marginBottom: 16,
+    borderColor: Colors.neutral[300],
+    backgroundColor: '#FFFFFF',
+    padding: Spacing[4],
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[900],
+    textAlignVertical: 'top',
+    marginBottom: Spacing[4],
+    minHeight: 100,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

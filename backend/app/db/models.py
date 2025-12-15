@@ -151,6 +151,18 @@ class WorkerProfile(Base):
     total_jobs = Column(Integer, default=0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     
+    # Bank account details for payouts
+    bank_account_holder_name = Column(String)
+    bank_name = Column(String)
+    bank_account_number = Column(String)  # Encrypted in production
+    bank_routing_number = Column(String)  # US banks
+    bank_country = Column(String, default="US")
+    bank_currency = Column(String, default="USD")
+    bank_account_verified = Column(Boolean, default=False)
+    
+    # Stripe Connect account ID for payouts
+    stripe_account_id = Column(String, index=True)
+    
     # Relationships
     user = relationship("User", back_populates="worker_profile")
     job_applications = relationship("JobApplication", back_populates="worker")
@@ -247,6 +259,8 @@ class Payment(Base):
     stripe_payment_id = Column(String, index=True)
     paypal_payment_id = Column(String, index=True)
     status = Column(Enum(PaymentStatus), default=PaymentStatus.PENDING, index=True)
+    working_hours = Column(Numeric(10, 2))  # Hours worked on the job
+    hourly_rate = Column(Numeric(10, 2))  # Agreed hourly rate
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     held_at = Column(DateTime(timezone=True))
     released_at = Column(DateTime(timezone=True))
@@ -257,6 +271,23 @@ class Payment(Base):
     # Relationships
     booking = relationship("Booking", back_populates="payments")
     disputes = relationship("PaymentDispute", back_populates="payment")
+
+class PaymentMethodModel(Base):
+    __tablename__ = "payment_methods"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    stripe_payment_method_id = Column(String, unique=True, nullable=False, index=True)
+    type = Column(String(50), nullable=False)  # card, bank_account
+    brand = Column(String(50))  # visa, mastercard, amex, etc.
+    last4 = Column(String(4))  # Made nullable to support payment methods without last4
+    expiry_month = Column(Integer)
+    expiry_year = Column(Integer)
+    is_default = Column(Boolean, default=False, index=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+    
+    # Relationships
+    user = relationship("User")
 
 class Message(Base):
     __tablename__ = "messages"
@@ -341,6 +372,7 @@ class WorkerPayout(Base):
     requested_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     processed_at = Column(DateTime(timezone=True))
     completed_at = Column(DateTime(timezone=True))
+    auto_process_at = Column(DateTime(timezone=True), index=True)  # Auto-process after 14 days
     failure_reason = Column(Text)
     payout_metadata = Column(JSON)
     
@@ -395,6 +427,7 @@ Index('idx_bookings_status_start_date', Booking.status, Booking.start_date)
 Index('idx_bookings_worker_client', Booking.worker_id, Booking.client_id)
 Index('idx_payments_status_created', Payment.status, Payment.created_at)
 Index('idx_payments_method_status', Payment.payment_method, Payment.status)
+Index('idx_payment_methods_user_default', PaymentMethodModel.user_id, PaymentMethodModel.is_default)
 Index('idx_payment_disputes_status_created', PaymentDispute.status, PaymentDispute.created_at)
 Index('idx_worker_payouts_status_requested', WorkerPayout.status, WorkerPayout.requested_at)
 Index('idx_payment_transactions_user_type', PaymentTransaction.user_id, PaymentTransaction.transaction_type)

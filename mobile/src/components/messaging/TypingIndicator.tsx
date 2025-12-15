@@ -1,118 +1,133 @@
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated } from 'react-native';
-import { COLORS, TYPOGRAPHY, SPACING, BORDER_RADIUS } from '@/utils/constants';
 
-interface TypingIndicatorProps {
-  isVisible: boolean;
-  userName?: string;
-}
-
-export default function TypingIndicator({ isVisible, userName = 'Someone' }: TypingIndicatorProps) {
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const dot1Anim = useRef(new Animated.Value(0)).current;
-  const dot2Anim = useRef(new Animated.Value(0)).current;
-  const dot3Anim = useRef(new Animated.Value(0)).current;
+const TypingIndicator: React.FC = () => {
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (isVisible) {
-      // Fade in the indicator
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
+    const animateDot = (dot: Animated.Value, delay: number) => {
+      return Animated.loop(
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.timing(dot, {
+            toValue: 1,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+          Animated.timing(dot, {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+    };
 
-      // Animate the dots
-      const animateDots = () => {
-        const createDotAnimation = (animValue: Animated.Value, delay: number) => {
-          return Animated.sequence([
-            Animated.delay(delay),
-            Animated.timing(animValue, {
-              toValue: 1,
-              duration: 400,
-              useNativeDriver: true,
-            }),
-            Animated.timing(animValue, {
-              toValue: 0,
-              duration: 400,
-              useNativeDriver: true,
-            }),
-          ]);
-        };
+    const animation = Animated.parallel([
+      animateDot(dot1, 0),
+      animateDot(dot2, 200),
+      animateDot(dot3, 400),
+    ]);
 
-        Animated.loop(
-          Animated.parallel([
-            createDotAnimation(dot1Anim, 0),
-            createDotAnimation(dot2Anim, 200),
-            createDotAnimation(dot3Anim, 400),
-          ])
-        ).start();
-      };
+    animation.start();
 
-      animateDots();
-    } else {
-      // Fade out the indicator
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-
-      // Reset dot animations
-      dot1Anim.setValue(0);
-      dot2Anim.setValue(0);
-      dot3Anim.setValue(0);
-    }
-  }, [isVisible, fadeAnim, dot1Anim, dot2Anim, dot3Anim]);
-
-  if (!isVisible) {
-    return null;
-  }
+    return () => {
+      animation.stop();
+    };
+  }, [dot1, dot2, dot3]);
 
   return (
-    <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+    <View style={styles.container}>
       <View style={styles.bubble}>
-        <Text style={styles.typingText}>{userName} is typing</Text>
+        <Text style={styles.typingText}>Typing</Text>
         <View style={styles.dotsContainer}>
-          <Animated.View style={[styles.dot, { opacity: dot1Anim }]} />
-          <Animated.View style={[styles.dot, { opacity: dot2Anim }]} />
-          <Animated.View style={[styles.dot, { opacity: dot3Anim }]} />
+          <Animated.View
+            style={[
+              styles.dot,
+              {
+                opacity: dot1,
+                transform: [
+                  {
+                    scale: dot1.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, 1.2],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.dot,
+              {
+                opacity: dot2,
+                transform: [
+                  {
+                    scale: dot2.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, 1.2],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.dot,
+              {
+                opacity: dot3,
+                transform: [
+                  {
+                    scale: dot3.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [1, 1.2],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
         </View>
       </View>
-    </Animated.View>
+    </View>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: SPACING.xs,
-    paddingHorizontal: SPACING.lg,
+    paddingHorizontal: 20,
+    paddingVertical: 8,
     alignItems: 'flex-start',
   },
   bubble: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.backgroundTertiary,
-    paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
-    borderRadius: BORDER_RADIUS.lg,
-    maxWidth: '80%',
+    backgroundColor: '#f0f0f0',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderBottomLeftRadius: 4,
   },
   typingText: {
-    fontSize: TYPOGRAPHY.fontSize.sm,
-    color: COLORS.textSecondary,
-    fontStyle: 'italic',
-    marginRight: SPACING.sm,
+    fontSize: 14,
+    color: '#666',
+    marginRight: 8,
   },
   dotsContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   dot: {
-    width: 4,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: COLORS.textSecondary,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#666',
     marginHorizontal: 1,
   },
 });
+
+export default TypingIndicator;

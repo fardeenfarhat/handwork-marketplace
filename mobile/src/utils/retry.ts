@@ -44,6 +44,11 @@ export async function withRetry<T>(
       
       // Don't retry on the last attempt or if error shouldn't be retried
       if (attempt === maxAttempts || !shouldRetry(error)) {
+        // For non-retryable errors (like 401, 403, etc), throw the original error
+        // to preserve status codes and proper error messages
+        if (!shouldRetry(error)) {
+          throw error;
+        }
         break;
       }
       
@@ -66,9 +71,17 @@ export async function withRetry<T>(
 }
 
 function defaultShouldRetry(error: any): boolean {
+  // Get status code from various possible locations
+  const statusCode = error?.status || error?.statusCode || error?.response?.status;
+  
   // In development, don't retry 404 errors (endpoint not implemented yet)
-  if (__DEV__ && error?.message?.includes('HTTP 404')) {
+  if (__DEV__ && (statusCode === 404 || error?.message?.includes('HTTP 404'))) {
     return false;
+  }
+  
+  // Don't retry on 4xx client errors (except 408 timeout and 429 rate limit)
+  if (statusCode >= 400 && statusCode < 500) {
+    return statusCode === 408 || statusCode === 429;
   }
   
   // Retry on network errors, timeouts, and 5xx server errors
@@ -76,17 +89,12 @@ function defaultShouldRetry(error: any): boolean {
     return true; // Timeout
   }
   
-  if (error?.message?.toLowerCase().includes('network')) {
-    return true; // Network error
+  if (error?.message?.toLowerCase().includes('network') && !statusCode) {
+    return true; // Network error (only if no status code)
   }
   
-  if (error?.response?.status >= 500) {
+  if (statusCode >= 500) {
     return true; // Server error
-  }
-  
-  // Don't retry on 4xx client errors (except 408 timeout and 429 rate limit)
-  if (error?.response?.status >= 400 && error?.response?.status < 500) {
-    return error?.response?.status === 408 || error?.response?.status === 429;
   }
   
   return false;

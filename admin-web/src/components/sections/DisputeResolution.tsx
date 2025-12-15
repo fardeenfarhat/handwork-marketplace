@@ -61,15 +61,28 @@ const DisputeResolution: React.FC = () => {
   return (
     <div className="content-section active">
       <div className="section-header">
-        <div className="filters">
-          <select value={filters.status} onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}>
-            <option value="">All Status</option>
-            <option value="open">Open</option>
-            <option value="investigating">Investigating</option>
-            <option value="resolved">Resolved</option>
-            <option value="closed">Closed</option>
-          </select>
-          <button onClick={loadDisputes} className="btn btn-primary">Apply</button>
+        <h1 className="section-title">Dispute Resolution</h1>
+        <p className="section-subtitle">Manage and resolve platform disputes</p>
+      </div>
+
+      <div className="filters-section">
+        <div className="filters-grid">
+          <div className="filter-group">
+            <label>Status</label>
+            <select value={filters.status} onChange={(e) => setFilters(prev => ({ ...prev, status: e.target.value }))}>
+              <option value="">All Status</option>
+              <option value="open">Open</option>
+              <option value="investigating">Investigating</option>
+              <option value="resolved">Resolved</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+        </div>
+        <div className="filters-actions">
+          <button onClick={loadDisputes} className="btn">
+            <i className="fas fa-search"></i>
+            Apply Filters
+          </button>
         </div>
       </div>
 
@@ -81,7 +94,7 @@ const DisputeResolution: React.FC = () => {
           Loading disputes...
         </div>
       ) : (
-        <div className="table-container">
+        <div className="data-table-container">
           <table className="data-table">
             <thead>
               <tr>

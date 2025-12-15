@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosResponse } from 'axios';
+import axios, { AxiosInstance } from 'axios';
 import { API_CONFIG } from '../config/api';
 
 class ApiService {
@@ -38,7 +38,7 @@ class ApiService {
   // Auth endpoints
   async login(email: string, password: string) {
     // Backend expects { email, password }
-    const response = await this.api.post('/api/v1/auth/login', {
+    const response = await this.api.post('/auth/login', {
       email,
       password,
     });
@@ -55,7 +55,7 @@ class ApiService {
   }
 
   async getCurrentAdmin() {
-    const response = await this.api.get('/api/v1/admin/me');
+    const response = await this.api.get('/admin/me');
     return response.data;
   }
 
@@ -68,17 +68,17 @@ class ApiService {
     is_active?: boolean;
     search?: string;
   }) {
-    const response = await this.api.get('/api/v1/admin/users', { params });
+    const response = await this.api.get('/admin/users', { params });
     return response.data;
   }
 
   async getUserDetail(userId: number) {
-    const response = await this.api.get(`/api/v1/admin/users/${userId}`);
+    const response = await this.api.get(`/admin/users/${userId}`);
     return response.data;
   }
 
   async updateUserStatus(userId: number, action: string, reason?: string) {
-    const response = await this.api.post(`/api/v1/admin/users/${userId}/actions`, {
+    const response = await this.api.post(`/admin/users/${userId}/actions`, {
       action,
       reason,
     });
@@ -95,12 +95,12 @@ class ApiService {
     min_budget?: number;
     max_budget?: number;
   }) {
-    const response = await this.api.get('/api/v1/admin/jobs', { params });
+    const response = await this.api.get('/admin/jobs', { params });
     return response.data;
   }
 
   async getJobDetail(jobId: number) {
-    const response = await this.api.get(`/api/v1/admin/jobs/${jobId}`);
+    const response = await this.api.get(`/admin/jobs/${jobId}`);
     return response.data;
   }
 
@@ -113,7 +113,17 @@ class ApiService {
     min_amount?: number;
     max_amount?: number;
   }) {
-    const response = await this.api.get('/api/v1/admin/payments', { params });
+    const response = await this.api.get('/admin/payments', { params });
+    return response.data;
+  }
+
+  async processPayout(payoutId: number) {
+    const response = await this.api.post(`/admin/payouts/${payoutId}/process`);
+    return response.data;
+  }
+
+  async triggerAutomaticPayouts() {
+    const response = await this.api.post('/admin/payouts/auto-process');
     return response.data;
   }
 
@@ -123,18 +133,18 @@ class ApiService {
     size?: number;
     status?: string;
   }) {
-    const response = await this.api.get('/api/v1/admin/disputes', { params });
+    const response = await this.api.get('/admin/disputes', { params });
     return response.data;
   }
 
   // Analytics
   async getPlatformMetrics() {
-    const response = await this.api.get('/api/v1/admin/analytics/metrics');
+    const response = await this.api.get('/admin/analytics/metrics');
     return response.data;
   }
 
   async getJobCategoriesStats() {
-    const response = await this.api.get('/api/v1/admin/analytics/job-categories');
+    const response = await this.api.get('/admin/analytics/job-categories');
     return response.data;
   }
 
@@ -146,17 +156,17 @@ class ApiService {
     min_rating?: number;
     max_rating?: number;
   }) {
-    const response = await this.api.get('/api/v1/admin/moderation/reviews', { params });
+    const response = await this.api.get('/admin/moderation/reviews', { params });
     return response.data;
   }
 
   async getReviewDetail(reviewId: number) {
-    const response = await this.api.get(`/api/v1/admin/moderation/reviews/${reviewId}`);
+    const response = await this.api.get(`/admin/moderation/reviews/${reviewId}`);
     return response.data;
   }
 
   async moderateReview(reviewId: number, action: string, reason?: string) {
-    const response = await this.api.post(`/api/v1/admin/moderation/reviews/${reviewId}/actions`, {
+    const response = await this.api.post(`/admin/moderation/reviews/${reviewId}/actions`, {
       action,
       reason,
     });
@@ -164,12 +174,12 @@ class ApiService {
   }
 
   async getKYCDocuments(params: { page?: number; size?: number }) {
-    const response = await this.api.get('/api/v1/admin/moderation/kyc', { params });
+    const response = await this.api.get('/admin/moderation/kyc', { params });
     return response.data;
   }
 
   async processKYC(workerProfileId: number, action: string, reason?: string) {
-    const response = await this.api.post(`/api/v1/admin/moderation/kyc/${workerProfileId}/actions`, {
+    const response = await this.api.post(`/admin/moderation/kyc/${workerProfileId}/actions`, {
       action,
       reason,
     });

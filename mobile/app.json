@@ -3,6 +3,7 @@
     "name": "Handwork Marketplace",
     "slug": "handwork-marketplace-mobile",
     "version": "1.0.0",
+    "sdkVersion": "49.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "handwork-marketplace",
@@ -18,7 +19,23 @@
       "bundleIdentifier": "com.handworkmarketplace.mobile"
     },
     "android": {
-      "package": "com.handworkmarketplace.mobile"
+      "package": "com.handworkmarketplace.mobile",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "backgroundColor": "#007AFF"
+      },
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "NOTIFICATIONS"
+      ],
+      "buildToolsVersion": "34.0.0",
+      "compileSdkVersion": 34,
+      "targetSdkVersion": 34,
+      "minSdkVersion": 24
     },
     "web": {
       "bundler": "webpack"
@@ -36,6 +53,11 @@
       "color": "#007AFF",
       "androidMode": "default",
       "androidCollapsedTitle": "Handwork Marketplace"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "50d94187-4ebc-4642-b3cf-46d0419cec39"
+      }
     }
   }
 }

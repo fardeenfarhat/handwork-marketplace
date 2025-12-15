@@ -11,9 +11,12 @@ import {
   Dimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import Button from '@/components/common/Button';
+import { ModernButton } from '@/components/ui/ModernButton';
+import { ModernCard } from '@/components/ui/ModernCard';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { Colors, Typography, Spacing, BorderRadius, Shadows, Gradients } from '@/styles/DesignSystem';
 
 interface PortfolioImage {
   id: string;
@@ -202,16 +205,6 @@ export default function PortfolioManager({
   return (
     <View style={styles.container}>
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Portfolio</Text>
-          <Text style={styles.subtitle}>
-            Showcase your best work to attract more clients
-          </Text>
-          <Text style={styles.imageCount}>
-            {images.length} of {maxImages} images
-          </Text>
-        </View>
-
         <View style={styles.grid}>
           {images.map((image) => (
             <View key={image.id} style={styles.imageContainer}>
@@ -253,10 +246,11 @@ export default function PortfolioManager({
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button
+        <ModernButton
           title="Save Portfolio"
           onPress={handleSave}
           disabled={isLoading}
+          loading={isLoading}
           style={styles.saveButton}
         />
       </View>
@@ -282,7 +276,7 @@ export default function PortfolioManager({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    paddingTop: Spacing[3],
   },
   loadingContainer: {
     flex: 1,
@@ -290,40 +284,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#666',
+    marginTop: Spacing[3],
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[600],
   },
   scrollView: {
     flex: 1,
   },
-  header: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    color: '#333',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    lineHeight: 22,
-    marginBottom: 8,
-  },
-  imageCount: {
-    fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '500',
-  },
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    padding: 20,
-    gap: 12,
+    padding: Spacing[4],
+    gap: Spacing[3],
   },
   imageContainer: {
     width: imageSize,
@@ -337,54 +309,58 @@ const styles = StyleSheet.create({
   image: {
     width: '100%',
     height: '100%',
-    borderRadius: 8,
-    backgroundColor: '#f5f5f5',
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.neutral[100],
+    ...Shadows.sm,
   },
   removeButton: {
     position: 'absolute',
-    top: 4,
-    right: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 12,
+    top: Spacing[1],
+    right: Spacing[1],
+    backgroundColor: 'rgba(255, 59, 48, 0.95)',
+    borderRadius: BorderRadius.full,
+    ...Shadows.sm,
   },
   addButton: {
     width: imageSize,
     height: imageSize,
     borderWidth: 2,
-    borderColor: '#007AFF',
+    borderColor: Colors.primary[300],
     borderStyle: 'dashed',
-    borderRadius: 8,
+    borderRadius: BorderRadius.lg,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8f9ff',
-    gap: 8,
+    backgroundColor: Colors.primary[50],
+    gap: Spacing[2],
   },
   addText: {
-    fontSize: 14,
-    color: '#007AFF',
-    fontWeight: '500',
+    fontSize: Typography.fontSize.sm,
+    color: Colors.primary[600],
+    fontWeight: '600' as const,
   },
   emptyState: {
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 40,
-    gap: 16,
+    padding: Spacing[6],
+    gap: Spacing[3],
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: Typography.fontSize.lg,
+    fontWeight: '700' as const,
+    color: Colors.neutral[900],
   },
   emptyDescription: {
-    fontSize: 16,
-    color: '#666',
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[600],
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 24,
   },
   footer: {
-    padding: 20,
+    paddingHorizontal: Spacing[5],
+    paddingVertical: Spacing[5],
+    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#f0f0f0',
+    borderTopColor: Colors.neutral[100],
   },
   saveButton: {
     marginTop: 0,
@@ -400,29 +376,30 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modal: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    margin: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: BorderRadius.xl,
+    margin: Spacing[5],
     maxHeight: '90%',
     width: '90%',
+    ...Shadows.xl,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    padding: Spacing[5],
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: Colors.neutral[200],
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
+    fontSize: Typography.fontSize.xl,
+    fontWeight: '700' as const,
+    color: Colors.neutral[900],
   },
   modalImage: {
     width: '100%',
     height: 300,
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
+    borderBottomLeftRadius: BorderRadius.xl,
+    borderBottomRightRadius: BorderRadius.xl,
   },
 });

@@ -1,0 +1,47 @@
+import React from 'react';
+import { StatusBar } from 'expo-status-bar';
+import { StyleSheet, Text, View } from 'react-native';
+
+export default function App() {
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>🔧 Handwork Marketplace</Text>
+      <Text style={styles.subtitle}>Firebase Messaging Ready!</Text>
+      <Text style={styles.description}>
+        The messaging system has been migrated to Firebase.
+        Use the web interface at localhost:5000 to test messaging.
+      </Text>
+      <StatusBar style="auto" />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#007AFF',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  description: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+});

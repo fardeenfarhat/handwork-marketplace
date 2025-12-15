@@ -10,10 +10,13 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import Button from '@/components/common/Button';
+import { ModernButton } from '@/components/ui/ModernButton';
+import { ModernCard } from '@/components/ui/ModernCard';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { Colors, Typography, Spacing, BorderRadius, Shadows, Gradients } from '@/styles/DesignSystem';
 
 interface KYCDocument {
   id: string;
@@ -264,25 +267,12 @@ export default function KYCUpload({
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Identity Verification</Text>
-        <Text style={styles.subtitle}>
-          Upload your documents to verify your identity and start working
-        </Text>
-        
-        {kycStatus && (
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor() }]}>
-            <Text style={styles.statusText}>{getStatusText()}</Text>
-          </View>
-        )}
-        
-        {kycStatus === 'rejected' && rejectionReason && (
-          <View style={styles.rejectionNotice}>
-            <Ionicons name="warning" size={20} color="#FF3B30" />
-            <Text style={styles.rejectionText}>{rejectionReason}</Text>
-          </View>
-        )}
-      </View>
+      {kycStatus === 'rejected' && rejectionReason && (
+        <View style={styles.rejectionNotice}>
+          <Ionicons name="warning" size={20} color="#FF3B30" />
+          <Text style={styles.rejectionText}>{rejectionReason}</Text>
+        </View>
+      )}
 
       {DOCUMENT_TYPES.map((docType) => {
         const document = getDocumentForType(docType.type);
@@ -344,10 +334,11 @@ export default function KYCUpload({
           Your documents are encrypted and stored securely. We only use them for identity verification.
         </Text>
         
-        <Button
-          title="Submit for Verification"
+        <ModernButton
+          title={kycStatus === 'pending' ? "Verification in Progress" : "Submit for Verification"}
           onPress={handleSubmit}
-          disabled={isLoading || kycStatus === 'pending'}
+          disabled={isLoading}
+          loading={isLoading}
           style={styles.submitButton}
         />
       </View>
@@ -358,7 +349,7 @@ export default function KYCUpload({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    paddingTop: Spacing[3],
   },
   loadingContainer: {
     flex: 1,
@@ -366,88 +357,65 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 12,
-    fontSize: 16,
-    color: '#666',
-  },
-  header: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    color: '#333',
-  },
-  subtitle: {
-    fontSize: 16,
-    color: '#666',
-    lineHeight: 22,
-  },
-  statusBadge: {
-    alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    marginTop: 12,
-  },
-  statusText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '600',
+    marginTop: Spacing[3],
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[600],
   },
   rejectionNotice: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     backgroundColor: '#FFF2F2',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 12,
-    gap: 8,
+    padding: Spacing[4],
+    marginHorizontal: Spacing[4],
+    marginBottom: Spacing[3],
+    borderRadius: BorderRadius.lg,
+    gap: Spacing[2],
   },
   rejectionText: {
     flex: 1,
-    fontSize: 14,
-    color: '#FF3B30',
+    fontSize: Typography.fontSize.sm,
+    color: Colors.danger[600],
     lineHeight: 20,
   },
   documentSection: {
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[4],
+    backgroundColor: '#FFFFFF',
+    marginBottom: Spacing[3],
+    marginHorizontal: Spacing[4],
+    borderRadius: BorderRadius.xl,
+    ...Shadows.sm,
   },
   documentHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: Spacing[3],
   },
   documentInfo: {
     flexDirection: 'row',
     flex: 1,
-    gap: 12,
+    gap: Spacing[3],
   },
   documentText: {
     flex: 1,
   },
   documentTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
+    fontSize: Typography.fontSize.base,
+    fontWeight: '700' as const,
+    color: Colors.neutral[900],
+    marginBottom: Spacing[1],
   },
   required: {
-    color: '#FF3B30',
+    color: Colors.danger[500],
   },
   documentDescription: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 18,
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
+    lineHeight: 20,
   },
   removeButton: {
-    padding: 8,
+    padding: Spacing[2],
   },
   documentPreview: {
     position: 'relative',
@@ -455,66 +423,70 @@ const styles = StyleSheet.create({
   previewImage: {
     width: '100%',
     height: 200,
-    borderRadius: 8,
-    backgroundColor: '#f5f5f5',
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.neutral[100],
   },
   documentIcon: {
     alignItems: 'center',
     justifyContent: 'center',
     height: 120,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    gap: 8,
+    backgroundColor: Colors.neutral[100],
+    borderRadius: BorderRadius.lg,
+    gap: Spacing[2],
   },
   documentName: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[700],
     textAlign: 'center',
   },
   uploadedBadge: {
     position: 'absolute',
-    top: 8,
-    right: 8,
+    top: Spacing[2],
+    right: Spacing[2],
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(52, 199, 89, 0.9)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
+    backgroundColor: 'rgba(52, 199, 89, 0.95)',
+    paddingHorizontal: Spacing[2],
+    paddingVertical: Spacing[1],
+    borderRadius: BorderRadius.full,
+    gap: Spacing[1],
+    ...Shadows.sm,
   },
   uploadedText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
+    color: '#FFFFFF',
+    fontSize: Typography.fontSize.xs,
+    fontWeight: '600' as const,
   },
   uploadButton: {
     alignItems: 'center',
     justifyContent: 'center',
     height: 120,
     borderWidth: 2,
-    borderColor: '#007AFF',
+    borderColor: Colors.primary[300],
     borderStyle: 'dashed',
-    borderRadius: 8,
-    backgroundColor: '#f8f9ff',
-    gap: 8,
+    borderRadius: BorderRadius.lg,
+    backgroundColor: Colors.primary[50],
+    gap: Spacing[2],
   },
   uploadText: {
-    fontSize: 16,
-    color: '#007AFF',
-    fontWeight: '500',
+    fontSize: Typography.fontSize.base,
+    color: Colors.primary[600],
+    fontWeight: '600' as const,
   },
   footer: {
-    padding: 20,
+    paddingHorizontal: Spacing[5],
+    paddingVertical: Spacing[5],
+    backgroundColor: '#FFFFFF',
+    marginTop: Spacing[3],
   },
   footerText: {
-    fontSize: 14,
-    color: '#666',
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[600],
     textAlign: 'center',
     lineHeight: 20,
-    marginBottom: 20,
+    marginBottom: Spacing[4],
   },
   submitButton: {
-    marginTop: 8,
+    marginTop: Spacing[2],
   },
 });

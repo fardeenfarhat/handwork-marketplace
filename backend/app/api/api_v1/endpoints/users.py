@@ -33,6 +33,10 @@ async def get_worker_profile(
             detail="Worker profile not found"
         )
     
+    # Calculate review count for this worker
+    from app.services.review_count_service import ReviewCountService
+    review_count = ReviewCountService.get_worker_review_count(db, worker_profile.id)
+
     # Create a simple response that matches mobile app expectations
     return {
         "userId": worker_profile.user_id,
@@ -44,7 +48,8 @@ async def get_worker_profile(
         "portfolioImages": worker_profile.portfolio_images or [],
         "kycStatus": worker_profile.kyc_status or "pending",
         "rating": float(worker_profile.rating or 0),
-        "totalJobs": worker_profile.total_jobs or 0
+        "totalJobs": worker_profile.total_jobs or 0,
+        "reviewCount": review_count
     }
 
 
@@ -70,6 +75,10 @@ async def get_client_profile(
             detail="Client profile not found"
         )
     
+    # Calculate review count for this client
+    from app.services.review_count_service import ReviewCountService
+    review_count = ReviewCountService.get_client_review_count(db, client_profile.id)
+
     # Create a simple response that matches mobile app expectations
     return {
         "userId": client_profile.user_id,
@@ -77,7 +86,8 @@ async def get_client_profile(
         "description": client_profile.description or "",
         "location": client_profile.location or "",
         "rating": float(client_profile.rating or 0),
-        "totalJobsPosted": client_profile.total_jobs_posted or 0
+        "totalJobsPosted": client_profile.total_jobs_posted or 0,
+        "reviewCount": review_count
     }
 
 

@@ -1,6 +1,8 @@
 {
   "cli": {
-    "version": ">= 3.0.0"
+    "version": ">= 3.0.0",
+    "appVersionSource": "local",
+    "requireCommit": false
   },
   "build": {
     "development": {
@@ -9,6 +11,13 @@
       "ios": {
         "resourceClass": "m1-medium"
       }
+    },
+    "preview": {
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "channel": "preview"
     },
     "staging": {
       "distribution": "internal",

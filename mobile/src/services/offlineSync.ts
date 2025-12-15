@@ -58,71 +58,101 @@ export class OfflineSyncService {
     try {
       // Load jobs cache
       const cachedJobs = await secureStorage.getItem('cached_jobs');
-      if (cachedJobs) {
-        const jobsData = JSON.parse(cachedJobs);
-        if (this.isCacheValid(jobsData.timestamp)) {
-          store.dispatch(setJobsCache(jobsData.data));
-        } else {
-          store.dispatch(markJobsCacheStale());
+      if (cachedJobs && cachedJobs !== 'undefined') {
+        try {
+          const jobsData = JSON.parse(cachedJobs);
+          if (this.isCacheValid(jobsData.timestamp)) {
+            store.dispatch(setJobsCache(jobsData.data));
+          } else {
+            store.dispatch(markJobsCacheStale());
+          }
+        } catch (error) {
+          console.error('Error parsing cached jobs:', error);
+          await secureStorage.removeItem('cached_jobs');
         }
       }
 
       // Load users cache
       const cachedUsers = await secureStorage.getItem('cached_users');
-      if (cachedUsers) {
-        const usersData = JSON.parse(cachedUsers);
-        if (this.isCacheValid(usersData.timestamp)) {
-          store.dispatch(setUsersCache(usersData.data));
+      if (cachedUsers && cachedUsers !== 'undefined') {
+        try {
+          const usersData = JSON.parse(cachedUsers);
+          if (this.isCacheValid(usersData.timestamp)) {
+            store.dispatch(setUsersCache(usersData.data));
+          }
+        } catch (error) {
+          console.error('Error parsing cached users:', error);
+          await secureStorage.removeItem('cached_users');
         }
       }
 
       // Load messages cache
       const cachedMessages = await secureStorage.getItem('cached_messages');
-      if (cachedMessages) {
-        const messagesData = JSON.parse(cachedMessages);
-        Object.entries(messagesData.data).forEach(([jobId, messages]) => {
-          store.dispatch(setMessagesCache({ 
-            jobId: Number(jobId), 
-            messages: messages as Message[] 
-          }));
-        });
+      if (cachedMessages && cachedMessages !== 'undefined') {
+        try {
+          const messagesData = JSON.parse(cachedMessages);
+          Object.entries(messagesData.data).forEach(([jobId, messages]) => {
+            store.dispatch(setMessagesCache({ 
+              jobId: Number(jobId), 
+              messages: messages as Message[] 
+            }));
+          });
+        } catch (error) {
+          console.error('Error parsing cached messages:', error);
+          await secureStorage.removeItem('cached_messages');
+        }
       }
 
       // Load bookings cache
       const cachedBookings = await secureStorage.getItem('cached_bookings');
-      if (cachedBookings) {
-        const bookingsData = JSON.parse(cachedBookings);
-        if (this.isCacheValid(bookingsData.timestamp)) {
-          store.dispatch(setBookingsCache(bookingsData.data));
-        } else {
-          store.dispatch(markBookingsCacheStale());
+      if (cachedBookings && cachedBookings !== 'undefined') {
+        try {
+          const bookingsData = JSON.parse(cachedBookings);
+          if (this.isCacheValid(bookingsData.timestamp)) {
+            store.dispatch(setBookingsCache(bookingsData.data));
+          } else {
+            store.dispatch(markBookingsCacheStale());
+          }
+        } catch (error) {
+          console.error('Error parsing cached bookings:', error);
+          await secureStorage.removeItem('cached_bookings');
         }
       }
 
       // Load reviews cache
       const cachedReviews = await secureStorage.getItem('cached_reviews');
-      if (cachedReviews) {
-        const reviewsData = JSON.parse(cachedReviews);
-        Object.entries(reviewsData.data).forEach(([userId, reviews]) => {
-          store.dispatch(setReviewsCache({ 
-            userId: Number(userId), 
-            reviews: reviews as Review[] 
-          }));
-        });
+      if (cachedReviews && cachedReviews !== 'undefined') {
+        try {
+          const reviewsData = JSON.parse(cachedReviews);
+          Object.entries(reviewsData.data).forEach(([userId, reviews]) => {
+            store.dispatch(setReviewsCache({ 
+              userId: Number(userId), 
+              reviews: reviews as Review[] 
+            }));
+          });
+        } catch (error) {
+          console.error('Error parsing cached reviews:', error);
+          await secureStorage.removeItem('cached_reviews');
+        }
       }
 
       // Load pending sync data
       const pendingSync = await secureStorage.getItem('pending_sync');
-      if (pendingSync) {
-        const syncData = JSON.parse(pendingSync);
-        Object.entries(syncData).forEach(([type, items]) => {
-          (items as any[]).forEach(item => {
-            store.dispatch(addToPendingSync({ 
-              type: type as any, 
-              data: item 
-            }));
+      if (pendingSync && pendingSync !== 'undefined') {
+        try {
+          const syncData = JSON.parse(pendingSync);
+          Object.entries(syncData).forEach(([type, items]) => {
+            (items as any[]).forEach(item => {
+              store.dispatch(addToPendingSync({ 
+                type: type as any, 
+                data: item 
+              }));
+            });
           });
-        });
+        } catch (error) {
+          console.error('Error parsing pending sync data:', error);
+          await secureStorage.removeItem('pending_sync');
+        }
       }
     } catch (error) {
       console.error('Error loading cached data:', error);

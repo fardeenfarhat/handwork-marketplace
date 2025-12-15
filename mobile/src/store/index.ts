@@ -4,6 +4,7 @@ import jobSlice from './slices/jobSlice';
 import messageSlice from './slices/messageSlice';
 import navigationSlice from './slices/navigationSlice';
 import cacheSlice from './slices/cacheSlice';
+import paymentSlice from './slices/paymentSlice';
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     messages: messageSlice,
     navigation: navigationSlice,
     cache: cacheSlice,
+    payment: paymentSlice,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

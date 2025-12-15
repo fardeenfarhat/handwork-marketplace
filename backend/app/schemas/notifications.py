@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 from enum import Enum
@@ -17,11 +17,16 @@ class NotificationResponse(BaseModel):
     title: str
     message: str
     type: NotificationType
-    data: Dict[str, Any] = {}
+    data: Optional[Dict[str, Any]] = {}
     is_read: bool
     created_at: datetime
     scheduled_for: Optional[datetime] = None
     sent_at: Optional[datetime] = None
+
+    @validator('data', pre=True)
+    def validate_data(cls, v):
+        """Convert None to empty dict"""
+        return v if v is not None else {}
 
     class Config:
         from_attributes = True

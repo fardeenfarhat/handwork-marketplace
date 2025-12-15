@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,16 +9,25 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
+  Animated,
+  Dimensions,
+  StatusBar,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute, RouteProp } from '@react-navigation/native';
 import { StackNavigationProp } from '@/types/navigation';
-import { MockDateTimePicker as DateTimePicker } from '@/components/common/MockDateTimePicker';
-import { MockIcon as Icon } from '@/components/common/MockIcon';
+import DateTimePicker from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
+import { ModernCard } from '@/components/ui/ModernCard';
 
 import { Job, JobsStackParamList } from '@/types';
 import { apiService } from '@/services/api';
 import { ErrorHandler } from '@/utils/errorHandler';
+import { Colors, Typography, Spacing, BorderRadius, Shadows, Gradients } from '@/styles/DesignSystem';
+
+const { height } = Dimensions.get('window');
 
 type JobApplicationScreenRouteProp = RouteProp<JobsStackParamList, 'JobApplication'>;
 type JobApplicationScreenNavigationProp = StackNavigationProp<JobsStackParamList, 'JobApplication'>;
@@ -45,6 +54,11 @@ function JobApplicationScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
 
+  // Animation refs (disabled - set to final values)
+  const fadeAnim = useRef(new Animated.Value(1)).current;
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(1)).current;
+
   const [formData, setFormData] = useState<ApplicationFormData>({
     message: '',
     proposedRate: 0,
@@ -52,6 +66,27 @@ function JobApplicationScreen() {
   });
 
   const [errors, setErrors] = useState<ApplicationFormErrors>({});
+
+  useEffect(() => {
+    // Animations disabled for stability
+    // Animated.parallel([
+    //   Animated.timing(fadeAnim, {
+    //     toValue: 1,
+    //     duration: 600,
+    //     useNativeDriver: true,
+    //   }),
+    //   Animated.timing(slideAnim, {
+    //     toValue: 0,
+    //     duration: 500,
+    //     useNativeDriver: true,
+    //   }),
+    //   Animated.timing(scaleAnim, {
+    //     toValue: 1,
+    //     duration: 600,
+    //     useNativeDriver: true,
+    //   }),
+    // ]).start();
+  }, []);
 
   useEffect(() => {
     fetchJobDetails();
@@ -170,380 +205,734 @@ function JobApplicationScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        style={styles.keyboardAvoid}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" />
+      
+      {/* Gradient Header */}
+      <LinearGradient
+        colors={['#FF6B6B', '#FF8E53', '#FFA07A']}
+        style={styles.gradientBackground}
       >
-        <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
-          {/* Job Summary */}
-          <View style={styles.jobSummary}>
-            <Text style={styles.jobTitle}>{job.title}</Text>
-            <Text style={styles.jobCategory}>{job.category}</Text>
-            <View style={styles.jobDetails}>
-              <View style={styles.detailRow}>
-                <Icon name="attach-money" size={16} color="#4CAF50" />
-                <Text style={styles.budget}>{formatBudget(job.budgetMin, job.budgetMax)}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Icon name="location-on" size={16} color="#2196F3" />
-                <Text style={styles.location}>{job.location}</Text>
-              </View>
-              <View style={styles.detailRow}>
-                <Icon name="schedule" size={16} color="#FF9800" />
-                <Text style={styles.preferredDate}>
-                  Preferred: {formatDate(job.preferredDate)}
-                </Text>
-              </View>
-            </View>
-          </View>
+        {/* Decorative Circles */}
+        <View style={[styles.decorativeCircle, { width: 200, height: 200, top: -50, right: -50 }]} />
+        <View style={[styles.decorativeCircle, { width: 150, height: 150, top: 80, left: -40 }]} />
+        <View style={[styles.decorativeCircle, { width: 120, height: 120, bottom: -20, right: 60 }]} />
 
-          {/* Application Form */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Your Application</Text>
+        {/* Header with Back Button */}
+        <SafeAreaView edges={['top']}>
+          <Animated.View 
+            style={[
+              styles.header,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateY: slideAnim }],
+              },
+            ]}
+          >
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            </TouchableOpacity>
+
+            <View style={styles.headerTitleContainer}>
+              <View style={styles.iconBadge}>
+                <Ionicons name="document-text" size={24} color="#FF6B6B" />
+              </View>
+              <Text style={styles.headerTitle}>Apply for Job</Text>
+            </View>
+
+            <View style={{ width: 44 }} />
+          </Animated.View>
+
+          {/* Job Info Stats */}
+          <Animated.View
+            style={[
+              styles.statsContainer,
+              {
+                opacity: fadeAnim,
+                transform: [{ scale: scaleAnim }],
+              },
+            ]}
+          >
+            <View style={styles.statCard}>
+              <Ionicons name="cash" size={20} color="#34C759" />
+              <Text style={styles.statValue}>{formatBudget(job.budgetMin, job.budgetMax)}</Text>
+              <Text style={styles.statLabel}>Budget</Text>
+            </View>
+
+            <View style={styles.statCard}>
+              <Ionicons name="location" size={20} color="#007AFF" />
+              <Text style={styles.statValue} numberOfLines={1}>{job.location}</Text>
+              <Text style={styles.statLabel}>Location</Text>
+            </View>
+
+            <View style={styles.statCard}>
+              <Ionicons name="time" size={20} color="#FF9500" />
+              <Text style={styles.statValue}>
+                {job.preferredDate
+                  ? new Date(job.preferredDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                  : 'Flexible'}
+              </Text>
+              <Text style={styles.statLabel}>Start Date</Text>
+            </View>
+          </Animated.View>
+        </SafeAreaView>
+      </LinearGradient>
+
+      {/* Content Card */}
+      <Animated.View
+        style={[
+          styles.contentCard,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardView}
+        >
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {/* Job Title Card */}
+            <ModernCard variant="elevated" style={styles.jobTitleCard}>
+              <View style={styles.jobHeaderContainer}>
+                <View style={styles.jobIconBadge}>
+                  <Ionicons name="briefcase" size={24} color="#007AFF" />
+                </View>
+                <View style={styles.jobHeaderText}>
+                  <Text style={styles.jobTitle}>{job.title}</Text>
+                  <View style={styles.categoryBadge}>
+                    <Text style={styles.categoryText}>{job.category}</Text>
+                  </View>
+                </View>
+              </View>
+            </ModernCard>
 
             {/* Cover Message */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Cover Message *</Text>
-              <Text style={styles.helperText}>
-                Explain why you're the right person for this job. Include relevant experience and qualifications.
-              </Text>
-              <TextInput
-                style={[styles.textArea, errors.message ? styles.inputError : null]}
-                placeholder="Hi! I'm interested in your job posting. I have experience with..."
-                value={formData.message}
-                onChangeText={(text) => updateFormData('message', text)}
-                multiline
-                numberOfLines={8}
-                textAlignVertical="top"
-                maxLength={1000}
-              />
-              <View style={styles.characterCountRow}>
-                <Text style={styles.characterCount}>
-                  {formData.message.length}/1000 characters
-                </Text>
-                <Text style={styles.minimumLength}>
-                  Minimum 50 characters
-                </Text>
+            <ModernCard variant="elevated" style={styles.formSection}>
+              <View style={styles.labelContainer}>
+                <View style={styles.formIconBadge}>
+                  <Ionicons name="chatbubble" size={18} color="#007AFF" />
+                </View>
+                <Text style={styles.modernLabel}>Cover Message</Text>
+                <View style={styles.requiredBadge}>
+                  <Text style={styles.requiredText}>Required</Text>
+                </View>
               </View>
-              {errors.message && <Text style={styles.errorText}>{errors.message}</Text>}
-            </View>
-
-            {/* Proposed Rate */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>Your Rate *</Text>
-              <Text style={styles.helperText}>
-                Budget range: {formatBudget(job.budgetMin, job.budgetMax)}
+              <Text style={styles.modernHelperText}>
+                Tell the client why you're perfect for this job. Be specific about your experience and approach.
               </Text>
-              <View style={styles.rateInputContainer}>
-                <Text style={styles.currencySymbol}>$</Text>
+              <View style={[styles.modernInputContainer, errors.message ? styles.inputError : null]}>
                 <TextInput
-                  style={[styles.rateInput, errors.proposedRate ? styles.inputError : null]}
-                  placeholder="0"
-                  keyboardType="numeric"
-                  value={formData.proposedRate > 0 ? formData.proposedRate.toString() : ''}
-                  onChangeText={(text) => updateFormData('proposedRate', parseInt(text) || 0)}
+                  style={styles.modernTextArea}
+                  placeholder="Hi! I'm excited about this opportunity because..."
+                  placeholderTextColor="#8E8E93"
+                  value={formData.message}
+                  onChangeText={(text) => updateFormData('message', text)}
+                  multiline
+                  numberOfLines={6}
+                  textAlignVertical="top"
+                  maxLength={1000}
                 />
-                <Text style={styles.rateLabel}>total</Text>
               </View>
-              {formData.proposedRate > 0 && (
-                <View style={styles.rateComparison}>
-                  {formData.proposedRate < job.budgetMin && (
-                    <Text style={styles.rateBelowBudget}>
-                      ⚠️ Below minimum budget
-                    </Text>
-                  )}
-                  {formData.proposedRate >= job.budgetMin && formData.proposedRate <= job.budgetMax && (
-                    <Text style={styles.rateInBudget}>
-                      ✅ Within budget range
-                    </Text>
-                  )}
-                  {formData.proposedRate > job.budgetMax && formData.proposedRate <= job.budgetMax * 1.2 && (
-                    <Text style={styles.rateAboveBudget}>
-                      ⚠️ Above maximum budget
-                    </Text>
-                  )}
-                  {formData.proposedRate > job.budgetMax * 1.2 && (
-                    <Text style={styles.rateWayAboveBudget}>
-                      ❌ Significantly above budget
-                    </Text>
-                  )}
+              <View style={styles.inputFooter}>
+                <Text style={[styles.characterCount, formData.message.length < 50 ? styles.warningText : null]}>
+                  {formData.message.length}/1000 • Min 50 characters
+                </Text>
+              </View>
+              {errors.message && (
+                <View style={styles.errorContainer}>
+                  <Ionicons name="alert-circle" size={16} color="#FF3B30" />
+                  <Text style={styles.errorText}>{errors.message}</Text>
                 </View>
               )}
-              {errors.proposedRate && <Text style={styles.errorText}>{errors.proposedRate}</Text>}
-            </View>
+            </ModernCard>
 
-            {/* Proposed Start Date */}
-            <View style={styles.formGroup}>
-              <Text style={styles.label}>When can you start? *</Text>
-              <Text style={styles.helperText}>
-                Client prefers: {formatDate(job.preferredDate)}
+            {/* Proposed Rate */}
+            <ModernCard variant="elevated" style={styles.formSection}>
+              <View style={styles.labelContainer}>
+                <View style={styles.formIconBadge}>
+                  <Ionicons name="cash" size={18} color="#34C759" />
+                </View>
+                <Text style={styles.modernLabel}>Your Rate</Text>
+                <View style={styles.requiredBadge}>
+                  <Text style={styles.requiredText}>Required</Text>
+                </View>
+              </View>
+              <Text style={styles.modernHelperText}>
+                Client's budget: {formatBudget(job.budgetMin, job.budgetMax)}
               </Text>
+              
+              <View style={[styles.rateCard, errors.proposedRate ? styles.inputError : null]}>
+                <View style={styles.rateInputRow}>
+                  <Text style={styles.dollarSign}>$</Text>
+                  <TextInput
+                    style={styles.modernRateInput}
+                    placeholder="Enter amount"
+                    placeholderTextColor="#8E8E93"
+                    keyboardType="numeric"
+                    value={formData.proposedRate > 0 ? formData.proposedRate.toString() : ''}
+                    onChangeText={(text) => updateFormData('proposedRate', parseInt(text) || 0)}
+                  />
+                  <Text style={styles.totalText}>total</Text>
+                </View>
+                
+                {formData.proposedRate > 0 && (
+                  <View style={styles.rateAnalysis}>
+                    {formData.proposedRate < job.budgetMin && (
+                      <View style={styles.rateStatus}>
+                        <Ionicons name="warning" size={16} color="#FF9500" />
+                        <Text style={styles.rateBelowBudget}>Below client's minimum budget</Text>
+                      </View>
+                    )}
+                    {formData.proposedRate >= job.budgetMin && formData.proposedRate <= job.budgetMax && (
+                      <View style={styles.rateStatus}>
+                        <Ionicons name="checkmark-circle" size={16} color="#34C759" />
+                        <Text style={styles.rateInBudget}>Perfect! Within client's budget</Text>
+                      </View>
+                    )}
+                    {formData.proposedRate > job.budgetMax && formData.proposedRate <= job.budgetMax * 1.2 && (
+                      <View style={styles.rateStatus}>
+                        <Ionicons name="information-circle" size={16} color="#FF9500" />
+                        <Text style={styles.rateAboveBudget}>Above client's maximum budget</Text>
+                      </View>
+                    )}
+                    {formData.proposedRate > job.budgetMax * 1.2 && (
+                      <View style={styles.rateStatus}>
+                        <Ionicons name="alert-circle" size={16} color="#FF3B30" />
+                        <Text style={styles.rateWayAboveBudget}>Significantly above budget</Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+              </View>
+              
+              {errors.proposedRate && (
+                <View style={styles.errorContainer}>
+                  <Ionicons name="alert-circle" size={16} color="#FF3B30" />
+                  <Text style={styles.errorText}>{errors.proposedRate}</Text>
+                </View>
+              )}
+            </ModernCard>
+
+            {/* Start Date */}
+            <ModernCard variant="elevated" style={styles.formSection}>
+              <View style={styles.labelContainer}>
+                <View style={styles.formIconBadge}>
+                  <Ionicons name="calendar" size={18} color="#FF9500" />
+                </View>
+                <Text style={styles.modernLabel}>Start Date</Text>
+                <View style={styles.requiredBadge}>
+                  <Text style={styles.requiredText}>Required</Text>
+                </View>
+              </View>
+              <Text style={styles.modernHelperText}>
+                Client prefers: {new Date(job.preferredDate).toLocaleDateString()}
+              </Text>
+              
               <TouchableOpacity
-                style={[styles.dateButton, errors.proposedStartDate ? styles.inputError : null]}
+                style={[styles.modernDateButton, errors.proposedStartDate ? styles.inputError : null]}
                 onPress={() => setShowDatePicker(true)}
               >
-                <Icon name="event" size={20} color="#666" />
-                <Text style={styles.dateButtonText}>
-                  {formatDate(formData.proposedStartDate)}
-                </Text>
-                <Icon name="keyboard-arrow-down" size={20} color="#666" />
+                <View style={styles.dateContent}>
+                  <Ionicons name="calendar" size={20} color="#007AFF" />
+                  <Text style={styles.modernDateText}>
+                    {new Date(formData.proposedStartDate).toLocaleDateString('en-US', {
+                      weekday: 'short',
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric'
+                    })}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-down" size={24} color="#8E8E93" />
               </TouchableOpacity>
+              
               {errors.proposedStartDate && (
-                <Text style={styles.errorText}>{errors.proposedStartDate}</Text>
+                <View style={styles.errorContainer}>
+                  <Ionicons name="alert-circle" size={16} color="#FF3B30" />
+                  <Text style={styles.errorText}>{errors.proposedStartDate}</Text>
+                </View>
               )}
-            </View>
+            </ModernCard>
 
-            {/* Application Tips */}
-            <View style={styles.tipsContainer}>
-              <Text style={styles.tipsTitle}>💡 Tips for a strong application:</Text>
-              <Text style={styles.tipItem}>• Highlight relevant experience and skills</Text>
-              <Text style={styles.tipItem}>• Mention any certifications or licenses</Text>
-              <Text style={styles.tipItem}>• Be specific about your approach to the job</Text>
-              <Text style={styles.tipItem}>• Ask clarifying questions if needed</Text>
-              <Text style={styles.tipItem}>• Be professional and courteous</Text>
-            </View>
-          </View>
-        </ScrollView>
+            {/* Pro Tips */}
+            <ModernCard variant="elevated" style={styles.tipsCard}>
+              <View style={styles.tipsHeader}>
+                <View style={styles.formIconBadge}>
+                  <Ionicons name="bulb" size={20} color="#FF9500" />
+                </View>
+                <Text style={styles.tipsTitle}>Pro Tips</Text>
+              </View>
+              <View style={styles.tipsList}>
+                <View style={styles.tip}>
+                  <View style={styles.tipDot} />
+                  <Text style={styles.tipText}>Highlight specific relevant experience</Text>
+                </View>
+                <View style={styles.tip}>
+                  <View style={styles.tipDot} />
+                  <Text style={styles.tipText}>Mention any certifications or portfolio</Text>
+                </View>
+                <View style={styles.tip}>
+                  <View style={styles.tipDot} />
+                  <Text style={styles.tipText}>Ask thoughtful questions about the project</Text>
+                </View>
+                <View style={styles.tip}>
+                  <View style={styles.tipDot} />
+                  <Text style={styles.tipText}>Be professional and enthusiastic</Text>
+                </View>
+              </View>
+            </ModernCard>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Animated.View>
 
-        {/* Submit Button */}
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
-            onPress={handleSubmit}
-            disabled={submitting}
+      {/* Submit Button */}
+      <View style={styles.submitFooter}>
+        <TouchableOpacity
+          style={[styles.modernSubmitButton, submitting && styles.submitButtonDisabled]}
+          onPress={handleSubmit}
+          disabled={submitting}
+          activeOpacity={0.8}
+        >
+          <LinearGradient
+            colors={['#FF6B6B', '#FF8E53']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.submitGradient}
           >
-            <Text style={styles.submitButtonText}>
-              {submitting ? 'Submitting Application...' : 'Submit Application'}
-            </Text>
-          </TouchableOpacity>
-        </View>
+            {submitting ? (
+              <View style={styles.submitButtonContent}>
+                <ActivityIndicator color="#FFFFFF" />
+                <Text style={styles.submitButtonText}>Submitting...</Text>
+              </View>
+            ) : (
+              <View style={styles.submitButtonContent}>
+                <Ionicons name="send" size={20} color="#FFFFFF" />
+                <Text style={styles.submitButtonText}>Submit Application</Text>
+              </View>
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
 
-        {/* Date Picker */}
-        {showDatePicker && (
-          <DateTimePicker
-            value={new Date(formData.proposedStartDate)}
-            mode="date"
-            display="default"
-            minimumDate={new Date()}
-            onChange={handleDateChange}
-          />
-        )}
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+      {/* Date Picker */}
+      {showDatePicker && (
+        <DateTimePicker
+          value={new Date(formData.proposedStartDate)}
+          mode="date"
+          display="default"
+          minimumDate={new Date()}
+          onChange={handleDateChange}
+        />
+      )}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
-  keyboardAvoid: {
-    flex: 1,
+    backgroundColor: Colors.neutral[50],
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: Colors.neutral[50],
+  },
+
+  // Gradient Header
+  gradientBackground: {
+    paddingBottom: Spacing[4],
+  },
+  decorativeCircle: {
+    position: 'absolute',
+    borderRadius: 9999,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
+    paddingBottom: Spacing[4],
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  headerTitleContainer: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  iconBadge: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing[2],
+    ...Shadows.lg,
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize.xl,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+
+  // Stats Container
+  statsContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
+    gap: Spacing[2],
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: BorderRadius.lg,
+    padding: Spacing[3],
+    alignItems: 'center',
+    gap: Spacing[1],
+  },
+  statValue: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  statLabel: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.medium as any,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
+  },
+
+  // Content Card
+  contentCard: {
+    flex: 1,
+    backgroundColor: Colors.neutral[50],
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    marginTop: Spacing[3],
+  },
+  keyboardView: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,
   },
-  jobSummary: {
-    backgroundColor: '#fff',
-    padding: 16,
-    marginBottom: 8,
+  scrollContent: {
+    padding: Spacing[4],
+    paddingBottom: Spacing[2],
+  },
+
+  // Job Title Card
+  jobTitleCard: {
+    marginBottom: Spacing[3],
+  },
+  jobHeaderContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  jobIconBadge: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(0, 122, 255, 0.08)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing[3],
+  },
+  jobHeaderText: {
+    flex: 1,
   },
   jobTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
+    fontSize: Typography.fontSize['2xl'],
+    fontWeight: Typography.fontWeight.bold as any,
+    color: Colors.neutral[900],
+    marginBottom: Spacing[1],
+    letterSpacing: -0.5,
   },
-  jobCategory: {
-    fontSize: 14,
-    color: '#666',
-    textTransform: 'capitalize',
-    marginBottom: 12,
+  categoryBadge: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: Spacing[3],
+    paddingVertical: Spacing[1],
+    backgroundColor: 'rgba(0, 122, 255, 0.08)',
+    borderRadius: BorderRadius.full,
   },
-  jobDetails: {
-    gap: 4,
+  categoryText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: '#007AFF',
+    letterSpacing: 0.5,
   },
-  detailRow: {
+
+  // Form Section
+  formSection: {
+    marginBottom: Spacing[3],
+  },
+  labelContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: Spacing[2],
   },
-  budget: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#4CAF50',
-    marginLeft: 4,
-  },
-  location: {
-    fontSize: 14,
-    color: '#2196F3',
-    marginLeft: 4,
-  },
-  preferredDate: {
-    fontSize: 14,
-    color: '#FF9800',
-    marginLeft: 4,
-  },
-  section: {
-    backgroundColor: '#fff',
-    padding: 16,
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 16,
-  },
-  formGroup: {
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 4,
-  },
-  helperText: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 8,
-  },
-  textArea: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 16,
-    backgroundColor: '#fff',
-    minHeight: 120,
-  },
-  inputError: {
-    borderColor: '#F44336',
-  },
-  characterCountRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 4,
-  },
-  characterCount: {
-    fontSize: 12,
-    color: '#999',
-  },
-  minimumLength: {
-    fontSize: 12,
-    color: '#666',
-  },
-  errorText: {
-    fontSize: 14,
-    color: '#F44336',
-    marginTop: 4,
-  },
-  rateInputContainer: {
-    flexDirection: 'row',
+  formIconBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    paddingHorizontal: 12,
+    marginRight: Spacing[2],
+    ...Shadows.base,
   },
-  currencySymbol: {
-    fontSize: 18,
-    color: '#333',
-    fontWeight: 'bold',
-  },
-  rateInput: {
+  modernLabel: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: Colors.neutral[900],
     flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    fontSize: 16,
-    borderWidth: 0,
   },
-  rateLabel: {
-    fontSize: 14,
-    color: '#666',
+  requiredBadge: {
+    paddingHorizontal: Spacing[2],
+    paddingVertical: 2,
+    backgroundColor: 'rgba(255, 59, 48, 0.08)',
+    borderRadius: BorderRadius.full,
   },
-  rateComparison: {
-    marginTop: 8,
+  requiredText: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.semibold as any,
+    color: '#FF3B30',
   },
-  rateBelowBudget: {
-    fontSize: 14,
-    color: '#FF9800',
-  },
-  rateInBudget: {
-    fontSize: 14,
-    color: '#4CAF50',
-  },
-  rateAboveBudget: {
-    fontSize: 14,
-    color: '#FF9800',
-  },
-  rateWayAboveBudget: {
-    fontSize: 14,
-    color: '#F44336',
-  },
-  dateButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    backgroundColor: '#fff',
-  },
-  dateButtonText: {
-    flex: 1,
-    fontSize: 16,
-    color: '#333',
-    marginLeft: 8,
-  },
-  tipsContainer: {
-    backgroundColor: '#f0f8ff',
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#e3f2fd',
-  },
-  tipsTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1976d2',
-    marginBottom: 8,
-  },
-  tipItem: {
-    fontSize: 14,
-    color: '#1976d2',
-    marginBottom: 4,
+  modernHelperText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.normal as any,
+    color: Colors.neutral[600],
+    marginBottom: Spacing[2],
     lineHeight: 20,
   },
-  footer: {
-    backgroundColor: '#fff',
-    padding: 16,
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+
+  // Text Input
+  modernInputContainer: {
+    backgroundColor: Colors.neutral[50],
+    borderWidth: 1.5,
+    borderColor: Colors.neutral[200],
+    borderRadius: BorderRadius.lg,
+    padding: Spacing[3],
   },
-  submitButton: {
-    backgroundColor: '#2196F3',
-    paddingVertical: 14,
-    borderRadius: 8,
+  modernTextArea: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.normal as any,
+    color: Colors.neutral[900],
+    minHeight: 120,
+    textAlignVertical: 'top',
+  },
+  inputFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: Spacing[2],
   },
-  submitButtonDisabled: {
-    backgroundColor: '#ccc',
+  characterCount: {
+    fontSize: Typography.fontSize.xs,
+    fontWeight: Typography.fontWeight.normal as any,
+    color: Colors.neutral[500],
+  },
+  warningText: {
+    color: '#FF9500',
+    fontWeight: Typography.fontWeight.semibold as any,
+  },
+  inputError: {
+    borderColor: '#FF3B30',
+    backgroundColor: 'rgba(255, 59, 48, 0.02)',
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing[2],
+    gap: Spacing[1],
+  },
+  errorText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium as any,
+    color: '#FF3B30',
+  },
+
+  // Rate Card
+  rateCard: {
+    backgroundColor: Colors.neutral[50],
+    borderWidth: 1.5,
+    borderColor: Colors.neutral[200],
+    borderRadius: BorderRadius.lg,
+    padding: Spacing[4],
+  },
+  rateInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing[2],
+  },
+  dollarSign: {
+    fontSize: Typography.fontSize['2xl'],
+    fontWeight: Typography.fontWeight.bold as any,
+    color: '#34C759',
+    marginRight: Spacing[2],
+  },
+  modernRateInput: {
+    fontSize: Typography.fontSize['2xl'],
+    fontWeight: Typography.fontWeight.bold as any,
+    color: Colors.neutral[900],
+    flex: 1,
+    padding: 0,
+  },
+  totalText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.medium as any,
+    color: Colors.neutral[500],
+  },
+  rateAnalysis: {
+    marginTop: Spacing[2],
+    paddingTop: Spacing[3],
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutral[200],
+  },
+  rateStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
+    padding: Spacing[2],
+    backgroundColor: Colors.neutral[100],
+    borderRadius: BorderRadius.lg,
+  },
+  rateBelowBudget: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium as any,
+    color: '#FF9500',
+  },
+  rateInBudget: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium as any,
+    color: '#34C759',
+  },
+  rateAboveBudget: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium as any,
+    color: '#FF9500',
+  },
+  rateWayAboveBudget: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.medium as any,
+    color: '#FF3B30',
+  },
+
+  // Date Picker
+  modernDateButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.neutral[50],
+    borderWidth: 1.5,
+    borderColor: Colors.neutral[200],
+    borderRadius: BorderRadius.lg,
+    padding: Spacing[4],
+  },
+  dateContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing[2],
+  },
+  modernDateText: {
+    fontSize: Typography.fontSize.base,
+    fontWeight: Typography.fontWeight.medium as any,
+    color: Colors.neutral[900],
+  },
+
+  // Tips Card
+  tipsCard: {
+    marginBottom: Spacing[4],
+  },
+  tipsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Spacing[3],
+  },
+  tipsTitle: {
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: Colors.neutral[900],
+    flex: 1,
+    marginLeft: Spacing[2],
+  },
+  tipsList: {
+    gap: Spacing[2],
+  },
+  tip: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing[2],
+  },
+  tipDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#FF9500',
+    marginTop: 8,
+  },
+  tipText: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: Typography.fontWeight.normal as any,
+    color: Colors.neutral[700],
+    lineHeight: 22,
+    flex: 1,
+  },
+
+  // Submit Button
+  submitFooter: {
+    paddingHorizontal: Spacing[4],
+    paddingVertical: Spacing[3],
+    backgroundColor: Colors.neutral[50],
+    borderTopWidth: 1,
+    borderTopColor: Colors.neutral[200],
+  },
+  modernSubmitButton: {
+    borderRadius: BorderRadius.xl,
+    overflow: 'hidden',
+    ...Shadows.lg,
+  },
+  submitGradient: {
+    paddingVertical: Spacing[4],
+    paddingHorizontal: Spacing[4],
+  },
+  submitButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing[2],
   },
   submitButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: Typography.fontSize.lg,
+    fontWeight: Typography.fontWeight.bold as any,
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
   },
 });
 

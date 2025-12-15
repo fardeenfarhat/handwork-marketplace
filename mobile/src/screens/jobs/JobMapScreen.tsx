@@ -102,17 +102,29 @@ export default function JobMapScreen() {
     } finally {
       setLoading(false);
     }
-  }, [filters, searchQuery, currentLocation]);
+  }, [filters, searchQuery]);
 
   useEffect(() => {
     if (hasPermission && !currentLocation) {
       getCurrentLocation();
     }
-  }, [hasPermission, currentLocation, getCurrentLocation]);
+  }, [hasPermission, getCurrentLocation]);
 
+  // Initial load and when filters/search changes
   useEffect(() => {
     fetchJobs();
-  }, [fetchJobs]);
+  }, [filters, searchQuery]);
+
+  // Separate effect for location-based updates with debounce
+  useEffect(() => {
+    if (currentLocation) {
+      const timeoutId = setTimeout(() => {
+        fetchJobs();
+      }, 1000); // 1 second debounce
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [currentLocation]);
 
   const handleJobPress = (job: Job) => {
     setSelectedJobId(job.id);
@@ -150,11 +162,20 @@ export default function JobMapScreen() {
         />
       </View>
 
+      {/* Location Permission Banner */}
+      {isWorker && !hasPermission && (
+        <View style={styles.permissionBanner}>
+          <Text style={styles.permissionText}>
+            📍 Enable location to see jobs near you and improve job matching
+          </Text>
+        </View>
+      )}
+
       {/* Map */}
       <JobMap
         jobs={jobs}
         onJobPress={handleJobPress}
-        showUserLocation={isWorker}
+        showUserLocation={isWorker && hasPermission}
         onRegionChange={handleRegionChange}
         selectedJobId={selectedJobId}
         style={styles.map}
@@ -171,13 +192,14 @@ export default function JobMapScreen() {
         
         {loading && (
           <View style={styles.loadingIndicator}>
-            <Text style={styles.loadingText}>Loading jobs...</Text>
+            <Text style={styles.loadingText}>Searching for jobs...</Text>
           </View>
         )}
         
         {!loading && jobs.length === 0 && (
           <View style={styles.emptyIndicator}>
             <Text style={styles.emptyText}>No jobs found in this area</Text>
+            <Text style={styles.emptySubtext}>Try adjusting your search or location</Text>
           </View>
         )}
         
@@ -266,6 +288,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
   },
+  emptySubtext: {
+    color: '#fff',
+    fontSize: 12,
+    opacity: 0.8,
+    marginTop: 4,
+  },
   jobCountIndicator: {
     backgroundColor: 'rgba(76, 175, 80, 0.9)',
     paddingHorizontal: 16,
@@ -277,5 +305,21 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '500',
+  },
+  permissionBanner: {
+    backgroundColor: '#FFF3CD',
+    borderColor: '#FFEAA7',
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 8,
+  },
+  permissionText: {
+    color: '#856404',
+    fontSize: 14,
+    fontWeight: '500',
+    textAlign: 'center',
   },
 });

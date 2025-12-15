@@ -1,3 +1,5 @@
+import { NavigatorScreenParams } from '@react-navigation/native';
+
 // User types
 export interface User {
   id: number;
@@ -6,7 +8,10 @@ export interface User {
   role: 'client' | 'worker';
   firstName: string;
   lastName: string;
-  isVerified: boolean;
+  isVerified: boolean; // KYC verification status
+  emailVerified: boolean; // Email verification status
+  phoneVerified: boolean; // Phone verification status
+  isActive: boolean;
 }
 
 export interface AuthError {
@@ -87,6 +92,7 @@ export interface Job {
   clientName?: string;
   clientRating?: number;
   applicationsCount?: number;
+  clientUserId?: number;
 }
 
 export interface JobApplication {
@@ -145,6 +151,7 @@ export interface WorkerProfile {
 }
 
 export interface ClientProfile {
+  id: number;
   userId: number;
   companyName?: string;
   description: string;
@@ -187,12 +194,50 @@ export interface Payment {
   bookingId: number;
   amount: number;
   platformFee: number;
+  workerAmount: number;
+  workingHours?: number;
+  hourlyRate?: number;
   stripePaymentId?: string;
   paypalPaymentId?: string;
   status: PaymentStatus;
   createdAt: string;
   releasedAt?: string;
   refundedAt?: string;
+  failureReason?: string;
+}
+
+export interface PaymentBreakdown {
+  workingHours: number;
+  hourlyRate: number;
+  subtotal: number;
+  platformFee: number;
+  platformFeePercentage: number;
+  total: number;
+  workerAmount: number;
+  currency: string;
+}
+
+export interface PaymentIntent {
+  clientSecret: string;
+  paymentIntentId: string;
+  amount: number;
+  currency: string;
+}
+
+export interface WorkerEarnings {
+  totalEarned: number;
+  availableBalance: number;
+  pendingBalance: number;
+  totalWithdrawn: number;
+  platformFeesPaid: number;
+}
+
+export interface Payout {
+  id: number;
+  amount: number;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  requestedAt: string;
+  processedAt?: string;
   failureReason?: string;
 }
 
@@ -226,6 +271,9 @@ export interface Booking {
   createdAt: string;
   updatedAt?: string;
   payment?: Payment;
+  clientUserId: number;
+  workerUserId: number;
+  hasUserReview?: boolean;
 }
 
 export interface BookingTimeline {
@@ -288,7 +336,7 @@ export interface ReviewResponse {
 
 export interface ReviewSubmission {
   bookingId: number;
-  revieweeId: number;
+  revieweeId?: number;  // Optional since backend auto-determines
   rating: number;
   comment: string;
 }
@@ -369,6 +417,7 @@ export interface ReadReceipt {
 export type RootStackParamList = {
   Auth: undefined;
   Main: undefined;
+  Reviews: NavigatorScreenParams<ReviewStackParamList>;
 };
 
 export type AuthStackParamList = {
@@ -383,11 +432,17 @@ export type AuthStackParamList = {
 };
 
 export type MainTabParamList = {
-  Jobs: undefined;
+  Jobs: NavigatorScreenParams<JobsStackParamList> | undefined;
   Messages: undefined;
-  Profile: undefined;
+  Profile: NavigatorScreenParams<ProfileStackParamList> | undefined;
   Dashboard: undefined;
-  Payments: undefined;
+  Payments: NavigatorScreenParams<PaymentStackParamList> | undefined;
+  Notifications: undefined;
+};
+
+export type NotificationStackParamList = {
+  NotificationsList: undefined;
+  NotificationSettings: undefined;
 };
 
 export type MessagesStackParamList = {
@@ -404,9 +459,13 @@ export type JobsStackParamList = {
   JobsList: undefined;
   JobMap: undefined;
   JobDetail: { jobId: number };
-  JobPost: undefined;
+  JobPost: { jobId?: number; isEdit?: boolean } | undefined;
   JobApplication: { jobId: number };
-  JobManagement: undefined;
+  JobManagement: { 
+    refresh?: boolean; 
+    initialTab?: 'posted' | 'applications' | 'applied'; 
+  } | undefined;
+  UserProfileView: { userId: number; userType: 'worker' | 'client' };
 };
 
 export type ProfileStackParamList = {
@@ -415,28 +474,45 @@ export type ProfileStackParamList = {
   ClientProfileEdit: undefined;
   KYCUpload: undefined;
   Portfolio: undefined;
+  UserProfileView: { userId: number; userType: 'worker' | 'client' };
 };
 
 export type PaymentStackParamList = {
   PaymentMethods: undefined;
+  BankAccount: undefined;
   AddPaymentMethod: undefined;
+  Payment: {
+    bookingId: number;
+    jobTitle: string;
+    workerName: string;
+    workingHours: number;
+    hourlyRate: number;
+  };
+  PaymentConfirmation: {
+    paymentId: number;
+    amount: number;
+    jobTitle: string;
+    workerName: string;
+  };
   BookingConfirmation: { jobId: number; workerId: number; agreedRate: number };
-  JobTracking: { bookingId: number };
+  JobTracking: { bookingId: number; showReviewPrompt?: boolean };
   CompletionVerification: { bookingId: number };
   PaymentHistory: undefined;
   DisputeReport: { bookingId: number };
   DisputeDetail: { disputeId: number };
+  Earnings: undefined;
+  PayoutRequest: undefined;
 };
 
 export type ReviewStackParamList = {
-  ReviewSubmission: { bookingId: number; revieweeId: number; revieweeName: string; jobTitle: string };
+  ReviewSubmission: { bookingId: number; revieweeId?: number; revieweeName: string; jobTitle: string };
   ReviewsList: { userId?: number };
   ReviewDetail: { reviewId: number };
   ReviewModeration: { reviewId: number };
 };
 
 // Navigation prop types
-import { NavigationProp } from '@react-navigation/native';
+import { NavigationProp, NavigatorScreenParams } from '@react-navigation/native';
 
 export type MainTabNavigationProp = NavigationProp<MainTabParamList>;
 export type JobsStackNavigationProp = NavigationProp<JobsStackParamList>;

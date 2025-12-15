@@ -28,6 +28,30 @@ class WithdrawalStatusEnum(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
 
+# Payment Breakdown Schema
+class PaymentBreakdown(BaseModel):
+    working_hours: Decimal = Field(..., gt=0, description="Working hours")
+    hourly_rate: Decimal = Field(..., gt=0, description="Hourly rate")
+    subtotal: Decimal = Field(..., description="Subtotal (hours × rate)")
+    platform_fee: Decimal = Field(..., description="Platform fee amount")
+    platform_fee_percentage: float = Field(..., description="Platform fee percentage")
+    total: Decimal = Field(..., description="Total amount to charge")
+    worker_amount: Decimal = Field(..., description="Amount worker receives")
+    currency: str = Field(default="usd", description="Currency code")
+    
+    class Config:
+        from_attributes = True
+
+class PaymentCalculateRequest(BaseModel):
+    working_hours: Decimal = Field(..., gt=0, description="Working hours")
+    hourly_rate: Decimal = Field(..., gt=0, description="Hourly rate per hour")
+    
+    @validator('working_hours', 'hourly_rate')
+    def validate_positive(cls, v):
+        if v <= 0:
+            raise ValueError('Value must be greater than 0')
+        return round(v, 2)
+
 # Payment Schemas
 class PaymentCreate(BaseModel):
     booking_id: int
@@ -67,8 +91,15 @@ class PaymentResponse(BaseModel):
 # Stripe Payment Intent
 class StripePaymentIntentCreate(BaseModel):
     booking_id: int
-    amount: Decimal
+    working_hours: Decimal = Field(..., gt=0, description="Working hours")
+    hourly_rate: Decimal = Field(..., gt=0, description="Hourly rate")
     currency: str = "usd"
+    
+    @validator('working_hours', 'hourly_rate')
+    def validate_positive(cls, v):
+        if v <= 0:
+            raise ValueError('Value must be greater than 0')
+        return round(v, 2)
     
 class StripePaymentIntentResponse(BaseModel):
     client_secret: str
@@ -204,6 +235,23 @@ class RefundResponse(BaseModel):
     amount: Decimal
     status: str
     reason: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+# Payment Method Management Schemas
+class PaymentMethodAdd(BaseModel):
+    payment_method_id: str = Field(..., description="Stripe payment method ID from client")
+
+class PaymentMethodResponse(BaseModel):
+    id: int
+    type: str
+    brand: Optional[str] = None
+    last4: Optional[str] = None
+    expiry_month: Optional[int] = None
+    expiry_year: Optional[int] = None
+    is_default: bool
     created_at: datetime
 
     class Config:

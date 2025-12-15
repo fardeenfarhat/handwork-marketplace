@@ -6,25 +6,35 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { StackNavigationProp } from '@/types/navigation';
 import { PaymentStackParamList, PaymentHistory, PaymentStatus } from '@/types';
-import { LoadingSpinner } from '@/components/common';
+import { LoadingSpinner, Header } from '@/components/common';
+import { Gradients, Colors, Spacing, BorderRadius, Typography } from '@/styles/DesignSystem';
 import apiService from '@/services/api';
 
 type NavigationProp = StackNavigationProp<PaymentStackParamList, 'PaymentHistory'>;
 
 const PaymentHistoryScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
+  
+  // UNDER CONSTRUCTION - Temporarily disabled
+  const UNDER_CONSTRUCTION = true;
+
   const [payments, setPayments] = useState<PaymentHistory[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'all' | 'payment' | 'payout' | 'refund'>('all');
 
   useEffect(() => {
-    loadPaymentHistory();
+    if (!UNDER_CONSTRUCTION) {
+      loadPaymentHistory();
+    }
   }, []);
 
   const loadPaymentHistory = async () => {
@@ -138,6 +148,45 @@ const PaymentHistoryScreen: React.FC = () => {
     </TouchableOpacity>
   );
 
+  if (UNDER_CONSTRUCTION) {
+    return (
+      <View style={styles.container}>
+        <StatusBar barStyle="light-content" />
+        
+        <LinearGradient
+          colors={[Colors.primary[600], Colors.primary[500]]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 0, y: 1 }}
+          style={styles.headerGradient}>
+          <SafeAreaView edges={['top']}>
+            <View style={styles.headerContent}>
+              <View style={styles.headerTop}>
+                <View style={styles.iconContainer}>
+                  <Ionicons name="receipt-outline" size={28} color="#FFFFFF" />
+                </View>
+                <View style={styles.headerTextContainer}>
+                  <Text style={styles.headerTitle}>Payment History</Text>
+                  <Text style={styles.headerSubtitle}>Track your transactions</Text>
+                </View>
+              </View>
+            </View>
+          </SafeAreaView>
+        </LinearGradient>
+
+        <View style={styles.constructionContainer}>
+          <View style={styles.constructionIcon}>
+            <Ionicons name="construct-outline" size={64} color={Colors.primary[500]} />
+          </View>
+          <Text style={styles.constructionTitle}>Under Construction</Text>
+          <Text style={styles.constructionText}>
+            We're building something amazing!{'\n'}
+            Payment history feature coming soon.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
@@ -148,9 +197,7 @@ const PaymentHistoryScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Payment History</Text>
-      </View>
+      <Header title="Payment History" />
 
       {/* Filter Buttons */}
       <View style={styles.filterContainer}>
@@ -186,19 +233,69 @@ const PaymentHistoryScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.neutral[50],
   },
-  header: {
-    padding: 16,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+  headerGradient: {
+    paddingBottom: Spacing[4],
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+  headerContent: {
+    paddingHorizontal: Spacing[4],
+    paddingTop: Spacing[3],
   },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: BorderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: Spacing[3],
+  },
+  headerTextContainer: {
+    flex: 1,
+  },
+  headerTitle: {
+    fontSize: Typography.fontSize['2xl'],
+    fontWeight: '700' as const,
+    color: '#FFFFFF',
+    marginBottom: Spacing[1],
+  },
+  headerSubtitle: {
+    fontSize: Typography.fontSize.sm,
+    color: 'rgba(255, 255, 255, 0.9)',
+  },
+  constructionContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Spacing[5],
+  },
+  constructionIcon: {
+    width: 120,
+    height: 120,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.primary[50],
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing[5],
+  },
+  constructionTitle: {
+    fontSize: Typography.fontSize['3xl'],
+    fontWeight: '700' as const,
+    color: Colors.neutral[900],
+    marginBottom: Spacing[3],
+  },
+  constructionText: {
+    fontSize: Typography.fontSize.base,
+    color: Colors.neutral[600],
+    textAlign: 'center',
+    lineHeight: 24,
+  },
+
   filterContainer: {
     flexDirection: 'row',
     padding: 16,

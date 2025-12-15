@@ -1,306 +1,157 @@
-from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect, UploadFile, File, Query
+from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.orm import Session
-from typing import List, Optional
-import json
+from typing import List, Optional, Dict, Any
 import logging
 
 from app.core.deps import get_db, get_current_user
-from app.db.models import User, Message
-from app.schemas.messages import (
-    MessageCreate, MessageResponse, MessageFilter, ConversationResponse,
-    BulkReadUpdate, WebSocketMessage
-)
-from app.services.messaging_service import MessagingService
-from app.services.websocket_manager import connection_manager, websocket_handler
-from app.services.file_storage import FileStorageService
+from app.db.models import User
+from app.services.firebase_integration import firebase_integration
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-@router.websocket("/ws/{user_id}")
-async def websocket_endpoint(websocket: WebSocket, user_id: int, db: Session = Depends(get_db)):
-    """WebSocket endpoint for real-time messaging"""
+def get_firebase_user(authorization: str = Header(None)) -> Dict[str, Any]:
+    """Get Firebase user from Authorization header"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
     
-    # TODO: Add proper authentication for WebSocket connections
-    # For now, we'll trust the user_id parameter
+    token = authorization.split(" ")[1]
+    decoded_token = firebase_integration.verify_firebase_token(token)
     
-    await connection_manager.connect(websocket, user_id)
+    if not decoded_token:
+        raise HTTPException(status_code=401, detail="Invalid Firebase token")
     
-    try:
-        while True:
-            # Receive message from client
-            data = await websocket.receive_text()
-            message_data = json.loads(data)
-            
-            # Handle the message
-            await websocket_handler.handle_message(websocket, user_id, message_data)
-            
-    except WebSocketDisconnect:
-        connection_manager.disconnect(websocket, user_id)
-    except Exception as e:
-        logger.error(f"WebSocket error for user {user_id}: {e}")
-        connection_manager.disconnect(websocket, user_id)
+    return decoded_token
 
-@router.post("/", response_model=MessageResponse)
-async def create_message(
-    message_data: MessageCreate,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Create a new message"""
-    
-    messaging_service = MessagingService(db)
-    
-    try:
-        # Create the message
-        message = messaging_service.create_message(message_data, current_user.id)
-        
-        # Send real-time notification via WebSocket
-        websocket_message = {
-            "type": "new_message",
-            "data": {
-                "id": message.id,
-                "sender_id": message.sender_id,
-                "receiver_id": message.receiver_id,
-                "job_id": message.job_id,
-                "content": message.content,
-                "attachments": message.attachments,
-                "created_at": message.created_at.isoformat(),
-                "sender_name": f"{current_user.first_name} {current_user.last_name}"
-            }
-        }
-        
-        await connection_manager.send_message_to_conversation(
-            websocket_message, message.sender_id, message.receiver_id
-        )
-        
-        return MessageResponse.from_orm(message)
-        
-    except Exception as e:
-        logger.error(f"Error creating message: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create message")
-
-@router.get("/conversations", response_model=List[ConversationResponse])
+@router.get("/conversations")
 async def get_conversations(
-    current_user: User = Depends(get_current_user),
+    firebase_user: Dict[str, Any] = Depends(get_firebase_user),
     db: Session = Depends(get_db)
 ):
-    """Get all conversations for the current user"""
-    
-    messaging_service = MessagingService(db)
+    """Get user's conversations from Firebase"""
     
     try:
-        conversations = messaging_service.get_conversations(current_user.id)
-        return conversations
+        user_id = int(firebase_user["uid"])
+        conversations = firebase_integration.get_user_conversations(user_id)
+        return {"conversations": conversations}
         
     except Exception as e:
         logger.error(f"Error getting conversations: {e}")
         raise HTTPException(status_code=500, detail="Failed to get conversations")
 
-@router.get("/", response_model=List[MessageResponse])
+@router.get("/messages/{other_user_id}")
 async def get_messages(
-    participant_id: Optional[int] = Query(None, description="ID of the other participant"),
-    job_id: Optional[int] = Query(None, description="Filter by job ID"),
-    is_read: Optional[bool] = Query(None, description="Filter by read status"),
-    limit: int = Query(50, le=100, description="Number of messages to return"),
-    offset: int = Query(0, ge=0, description="Number of messages to skip"),
-    current_user: User = Depends(get_current_user),
+    other_user_id: int,
+    limit: int = 50,
+    firebase_user: Dict[str, Any] = Depends(get_firebase_user),
     db: Session = Depends(get_db)
 ):
-    """Get messages for the current user with filtering"""
-    
-    messaging_service = MessagingService(db)
+    """Get messages for a conversation from Firebase"""
     
     try:
-        filters = MessageFilter(
-            participant_id=participant_id,
-            job_id=job_id,
-            is_read=is_read,
-            limit=limit,
-            offset=offset
-        )
-        
-        messages = messaging_service.get_messages(current_user.id, filters)
-        return [MessageResponse.from_orm(message) for message in messages]
+        user_id = int(firebase_user["uid"])
+        messages = firebase_integration.get_firebase_messages(user_id, other_user_id, limit)
+        return {"messages": messages}
         
     except Exception as e:
         logger.error(f"Error getting messages: {e}")
         raise HTTPException(status_code=500, detail="Failed to get messages")
 
-@router.put("/{message_id}/read")
-async def mark_message_as_read(
-    message_id: int,
+@router.post("/sync-user")
+async def sync_user_to_firebase(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Mark a message as read"""
-    
-    messaging_service = MessagingService(db)
+    """Sync current user data to Firebase"""
     
     try:
-        success = messaging_service.mark_message_as_read(message_id, current_user.id)
+        success = firebase_integration.sync_user_to_firebase(current_user)
         
         if success:
-            # Send read receipt via WebSocket
-            message = db.query(Message).filter(Message.id == message_id).first()
-            if message:
-                await connection_manager.handle_read_receipt(
-                    current_user.id, message_id, message.sender_id
-                )
-            
-            return {"message": "Message marked as read"}
+            return {"message": "User synced to Firebase successfully"}
         else:
-            raise HTTPException(status_code=404, detail="Message not found or already read")
+            raise HTTPException(status_code=500, detail="Failed to sync user to Firebase")
             
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Error marking message as read: {e}")
-        raise HTTPException(status_code=500, detail="Failed to mark message as read")
+        logger.error(f"Error syncing user to Firebase: {e}")
+        raise HTTPException(status_code=500, detail="Failed to sync user to Firebase")
 
-@router.put("/read-bulk")
-async def mark_messages_as_read(
-    bulk_update: BulkReadUpdate,
+@router.post("/migrate-to-firebase")
+async def migrate_messages_to_firebase(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Mark multiple messages as read"""
+    """Migrate existing SQL messages to Firebase (Admin only)"""
     
-    messaging_service = MessagingService(db)
-    
-    try:
-        updated_count = messaging_service.mark_messages_as_read(
-            bulk_update.message_ids, current_user.id
-        )
-        
-        # Send read receipts via WebSocket for each message
-        messages = (
-            db.query(Message)
-            .filter(Message.id.in_(bulk_update.message_ids))
-            .all()
-        )
-        
-        for message in messages:
-            await connection_manager.handle_read_receipt(
-                current_user.id, message.id, message.sender_id
-            )
-        
-        return {"message": f"{updated_count} messages marked as read"}
-        
-    except Exception as e:
-        logger.error(f"Error marking messages as read: {e}")
-        raise HTTPException(status_code=500, detail="Failed to mark messages as read")
-
-@router.post("/upload-attachment")
-async def upload_message_attachment(
-    file: UploadFile = File(...),
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Upload a file attachment for messages"""
-    
-    file_storage = FileStorageService()
+    # Check if user is admin (you may want to implement proper admin check)
+    if not current_user.is_verified:  # Replace with proper admin check
+        raise HTTPException(status_code=403, detail="Admin access required")
     
     try:
-        result = await file_storage.upload_message_attachment(current_user.id, file)
-        return result
-        
-    except Exception as e:
-        logger.error(f"Error uploading message attachment: {e}")
-        raise HTTPException(status_code=500, detail="Failed to upload attachment")
-
-@router.delete("/{message_id}")
-async def delete_message(
-    message_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Delete a message (only by sender)"""
-    
-    messaging_service = MessagingService(db)
-    
-    try:
-        success = messaging_service.delete_message(message_id, current_user.id)
+        success = firebase_integration.migrate_sql_messages_to_firebase(db)
         
         if success:
-            # Notify via WebSocket that message was deleted
-            delete_message = {
-                "type": "message_deleted",
-                "data": {
-                    "message_id": message_id,
-                    "deleted_by": current_user.id
-                }
-            }
-            
-            # We need to get the receiver_id from the deleted message
-            # Since the message is deleted, we'll need to handle this differently
-            # For now, we'll just return success
-            
-            return {"message": "Message deleted"}
+            return {"message": "Messages migrated to Firebase successfully"}
         else:
-            raise HTTPException(status_code=404, detail="Message not found or not authorized")
+            raise HTTPException(status_code=500, detail="Failed to migrate messages to Firebase")
             
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Error deleting message: {e}")
-        raise HTTPException(status_code=500, detail="Failed to delete message")
+        logger.error(f"Error migrating messages to Firebase: {e}")
+        raise HTTPException(status_code=500, detail="Failed to migrate messages to Firebase")
 
-@router.get("/participants")
-async def get_conversation_participants(
-    job_id: Optional[int] = Query(None, description="Filter by job ID"),
+@router.get("/firebase-config")
+async def get_firebase_config():
+    """Get Firebase configuration for client apps"""
+    
+    return {
+        "projectId": "handwork-marketplace",  # Replace with actual project ID
+        "messagingSenderId": "123456789",  # Replace with actual sender ID
+        "appId": "1:123456789:web:abcdef",  # Replace with actual app ID
+        "apiKey": "AIzaSyExample",  # Replace with actual API key
+        "authDomain": "handwork-marketplace.firebaseapp.com",  # Replace with actual domain
+        "storageBucket": "handwork-marketplace.appspot.com",  # Replace with actual bucket
+        "databaseURL": "https://handwork-marketplace-default-rtdb.firebaseio.com",  # Replace with actual URL
+    }
+
+@router.post("/create-firebase-user")
+async def create_firebase_user(
+    password: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get users that the current user can message"""
-    
-    messaging_service = MessagingService(db)
+    """Create Firebase Auth user for existing user"""
     
     try:
-        participants = messaging_service.get_conversation_participants(current_user.id, job_id)
+        firebase_uid = firebase_integration.create_firebase_user(current_user, password)
         
-        return [
-            {
-                "id": user.id,
-                "name": f"{user.first_name} {user.last_name}",
-                "email": user.email,
-                "role": user.role,
-                "is_online": connection_manager.is_user_online(user.id)
-            }
-            for user in participants
-        ]
-        
+        if firebase_uid:
+            # Also sync user data to Firestore
+            firebase_integration.sync_user_to_firebase(current_user)
+            return {"message": "Firebase user created successfully", "firebase_uid": firebase_uid}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to create Firebase user")
+            
     except Exception as e:
-        logger.error(f"Error getting conversation participants: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get participants")
+        logger.error(f"Error creating Firebase user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to create Firebase user")
 
-@router.get("/unread-count")
-async def get_unread_message_count(
+@router.put("/update-firebase-user")
+async def update_firebase_user(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Get count of unread messages for the current user"""
-    
-    messaging_service = MessagingService(db)
+    """Update Firebase Auth user data"""
     
     try:
-        count = messaging_service.get_unread_message_count(current_user.id)
-        return {"unread_count": count}
+        success = firebase_integration.update_firebase_user(current_user)
         
+        if success:
+            # Also sync user data to Firestore
+            firebase_integration.sync_user_to_firebase(current_user)
+            return {"message": "Firebase user updated successfully"}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to update Firebase user")
+            
     except Exception as e:
-        logger.error(f"Error getting unread message count: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get unread message count")
-
-@router.get("/online-users")
-async def get_online_users(
-    current_user: User = Depends(get_current_user)
-):
-    """Get list of currently online users"""
-    
-    try:
-        online_users = connection_manager.get_online_users()
-        return {"online_users": online_users}
-        
-    except Exception as e:
-        logger.error(f"Error getting online users: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get online users")
+        logger.error(f"Error updating Firebase user: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update Firebase user")

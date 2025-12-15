@@ -26,7 +26,10 @@ export const ReviewDetailScreen: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.auth);
 
   const [review, setReview] = useState<Review | null>(null);
+  const [reviewerProfile, setReviewerProfile] = useState<any>(null);
+  const [revieweeProfile, setRevieweeProfile] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingProfiles, setIsLoadingProfiles] = useState(false);
 
 
 
@@ -409,3 +412,5 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
 });
+
+export default ReviewDetailScreen;

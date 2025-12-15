@@ -179,6 +179,84 @@ async def get_payments(
         pages=pages
     )
 
+# Worker Payout Management
+@router.post("/payouts/{payout_id}/process")
+async def process_payout(
+    payout_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Manually process a worker payout (send money to worker's bank account)"""
+    from app.services.payment_service import PaymentService
+    from app.schemas.payments import WorkerPayoutResponse
+    
+    payment_service = PaymentService(db)
+    
+    try:
+        payout = await payment_service.process_payout(payout_id, is_automatic=False)
+        return {
+            "success": True,
+            "message": f"Payout #{payout_id} processed successfully",
+            "payout": WorkerPayoutResponse.from_orm(payout)
+        }
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to process payout: {str(e)}"
+        )
+
+@router.post("/payouts/{payout_id}/reset")
+async def reset_failed_payout(
+    payout_id: int,
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Reset a failed payout back to PENDING status for retry"""
+    from app.db.models import WorkerPayout, WithdrawalStatus
+    
+    payout = db.query(WorkerPayout).filter(WorkerPayout.id == payout_id).first()
+    if not payout:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Payout not found"
+        )
+    
+    if payout.status != WithdrawalStatus.FAILED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Only failed payouts can be reset. Current status: {payout.status.value}"
+        )
+    
+    # Reset to pending
+    payout.status = WithdrawalStatus.PENDING
+    payout.failure_reason = None
+    payout.processed_at = None
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": f"Payout #{payout_id} has been reset to PENDING status and can now be retried"
+    }
+
+@router.post("/payouts/auto-process")
+async def trigger_automatic_payouts(
+    db: Session = Depends(get_db),
+    current_admin: User = Depends(get_current_admin_user)
+):
+    """Manually trigger automatic payout processing for payouts 14+ days old"""
+    from app.services.payment_service import PaymentService
+    
+    payment_service = PaymentService(db)
+    results = await payment_service.process_automatic_payouts()
+    
+    return {
+        "success": True,
+        "message": f"Processed {results['processed']} payouts, {results['failed']} failed",
+        "results": results
+    }
+
 # Dispute Management
 @router.get("/disputes", response_model=PaginatedResponse)
 async def get_disputes(

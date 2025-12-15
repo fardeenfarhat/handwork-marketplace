@@ -1,4 +1,4 @@
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, and_, or_, desc, asc
 from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
@@ -23,30 +23,57 @@ class ReviewService:
     def create_review(self, review_data: ReviewCreate, reviewer_id: int) -> Review:
         """Create a new review for a completed booking"""
         
+        print(f"🔍 DEBUG: Creating review for booking {review_data.booking_id} by user {reviewer_id}")
+        
         # Verify booking exists and is completed
-        booking = self.db.query(Booking).filter(
+        booking = self.db.query(Booking).options(
+            joinedload(Booking.client).joinedload(ClientProfile.user),
+            joinedload(Booking.worker).joinedload(WorkerProfile.user)
+        ).filter(
             Booking.id == review_data.booking_id,
             Booking.status == BookingStatus.COMPLETED
         ).first()
         
         if not booking:
+            print(f"❌ DEBUG: Booking {review_data.booking_id} not found or not completed")
             raise ValueError("Booking not found or not completed")
         
+        print(f"✅ DEBUG: Found booking - Client: {booking.client.user_id}, Worker: {booking.worker.user_id}")
+        
         # Verify reviewer is part of the booking
-        if reviewer_id not in [booking.client.user_id, booking.worker.user_id]:
+        client_user_id = booking.client.user_id
+        worker_user_id = booking.worker.user_id
+        
+        print(f"🔍 DEBUG: Checking if reviewer {reviewer_id} is in booking (client: {client_user_id}, worker: {worker_user_id})")
+        
+        if reviewer_id not in [client_user_id, worker_user_id]:
+            print(f"❌ DEBUG: Reviewer {reviewer_id} not part of booking")
             raise ValueError("You can only review bookings you were part of")
         
-        # Verify reviewee is the other party in the booking
-        if review_data.reviewee_id == reviewer_id:
-            raise ValueError("You cannot review yourself")
-        
-        expected_reviewee_id = (
-            booking.worker.user_id if reviewer_id == booking.client.user_id 
-            else booking.client.user_id
+        # Auto-determine the reviewee based on the booking and reviewer
+        # If reviewer is the client, reviewee is the worker (and vice versa)
+        actual_reviewee_id = (
+            worker_user_id if reviewer_id == client_user_id 
+            else client_user_id
         )
         
-        if review_data.reviewee_id != expected_reviewee_id:
-            raise ValueError("Invalid reviewee for this booking")
+        print(f"✅ DEBUG: Auto-determined reviewee: {actual_reviewee_id}")
+        
+        # If reviewee_id is provided, validate it matches our expectation
+        # But also handle cases where profile IDs are sent instead of user IDs
+        if hasattr(review_data, 'reviewee_id') and review_data.reviewee_id is not None:
+            # Check if the provided reviewee_id matches the expected user ID
+            if review_data.reviewee_id != actual_reviewee_id:
+                # Check if it might be a profile ID instead of user ID
+                if (reviewer_id == booking.client.user_id and review_data.reviewee_id == booking.worker_id) or \
+                   (reviewer_id == booking.worker.user_id and review_data.reviewee_id == booking.client_id):
+                    # Profile ID was sent, that's okay, we'll use the actual user ID
+                    pass
+                else:
+                    raise ValueError("Invalid reviewee for this booking")
+        
+        # Use the auto-determined reviewee ID regardless of what was sent
+        final_reviewee_id = actual_reviewee_id
         
         # Check if review already exists
         existing_review = self.db.query(Review).filter(
@@ -55,28 +82,39 @@ class ReviewService:
         ).first()
         
         if existing_review:
+            print(f"❌ DEBUG: Review already exists for booking {review_data.booking_id}")
             raise ValueError("You have already reviewed this booking")
         
+        print(f"✅ DEBUG: No existing review found, creating new review")
+        
         # Create the review
+        print(f"🔍 DEBUG: Creating review with data - booking: {review_data.booking_id}, reviewer: {reviewer_id}, reviewee: {final_reviewee_id}, rating: {review_data.rating}")
+        print(f"🔍 DEBUG: review_data type: {type(review_data)}")
+        print(f"🔍 DEBUG: review_data.rating type: {type(review_data.rating)}, value: {review_data.rating}")
+        print(f"🔍 DEBUG: review_data.comment: {review_data.comment}")
+        
         review = Review(
             booking_id=review_data.booking_id,
             reviewer_id=reviewer_id,
-            reviewee_id=review_data.reviewee_id,
+            reviewee_id=final_reviewee_id,  # Use the auto-determined reviewee ID
             rating=review_data.rating,
             comment=review_data.comment,
-            status=ReviewStatus.PENDING  # Reviews need moderation
+            status=ReviewStatus.APPROVED  # Auto-approve reviews to update ratings immediately
         )
         
+        print(f"🔍 DEBUG: Review object created - rating in object: {review.rating}")
+        
         self.db.add(review)
+        print(f"✅ DEBUG: Review object created and added to DB")
         self.db.commit()
         self.db.refresh(review)
         
         # Update user ratings
-        self._update_user_rating(review_data.reviewee_id)
+        self._update_user_rating(review.reviewee_id)
         
         # Send notification to reviewee
         self.notification_service.create_notification(
-            user_id=review_data.reviewee_id,
+            user_id=review.reviewee_id,
             title="New Review Received",
             message=f"You received a {review_data.rating}-star review",
             notification_type="review",
@@ -86,16 +124,26 @@ class ReviewService:
         return review
 
     def update_review(self, review_id: int, review_data: ReviewUpdate, reviewer_id: int) -> Review:
-        """Update an existing review (only if pending)"""
+        """Update an existing review (only if pending or within 24 hours of creation)"""
         
         review = self.db.query(Review).filter(
             Review.id == review_id,
-            Review.reviewer_id == reviewer_id,
-            Review.status == ReviewStatus.PENDING
+            Review.reviewer_id == reviewer_id
         ).first()
         
         if not review:
-            raise ValueError("Review not found or cannot be updated")
+            raise ValueError("Review not found")
+        
+        # Check if review can be updated (pending or within 24 hours)
+        from datetime import datetime, timedelta
+        can_update = (
+            review.status == ReviewStatus.PENDING or 
+            (review.status == ReviewStatus.APPROVED and 
+             review.created_at > datetime.utcnow() - timedelta(hours=24))
+        )
+        
+        if not can_update:
+            raise ValueError("Review cannot be updated after 24 hours")
         
         # Update fields
         if review_data.rating is not None:
@@ -476,15 +524,25 @@ class ReviewService:
         self.db.commit()
 
     def delete_review(self, review_id: int, user_id: int) -> bool:
-        """Delete a review (only by reviewer and only if pending)"""
+        """Delete a review (only by reviewer and only if pending or within 24 hours)"""
         
         review = self.db.query(Review).filter(
             Review.id == review_id,
-            Review.reviewer_id == user_id,
-            Review.status == ReviewStatus.PENDING
+            Review.reviewer_id == user_id
         ).first()
         
         if not review:
+            return False
+        
+        # Check if review can be deleted (pending or within 24 hours)
+        from datetime import datetime, timedelta
+        can_delete = (
+            review.status == ReviewStatus.PENDING or 
+            (review.status == ReviewStatus.APPROVED and 
+             review.created_at > datetime.utcnow() - timedelta(hours=24))
+        )
+        
+        if not can_delete:
             return False
         
         self.db.delete(review)

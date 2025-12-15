@@ -32,6 +32,7 @@ export const loginUser = createAsyncThunk(
         await secureStorage.setItem('refresh_token', response.refresh_token);
       }
       apiService.setToken(response.access_token);
+      
       return response;
     } catch (error: any) {
       const authError = ErrorHandler.createAuthError(error, 'login');
@@ -94,6 +95,21 @@ export const loadStoredAuth = createAsyncThunk(
     }
   }
 );
+
+export const refreshUserProfile = createAsyncThunk(
+  'auth/refreshProfile',
+  async (_, { rejectWithValue }) => {
+    try {
+      const user = await apiService.getProfile();
+      return user;
+    } catch (error: any) {
+      const authError = ErrorHandler.createAuthError(error, 'refreshProfile');
+      return rejectWithValue(authError);
+    }
+  }
+);
+
+
 
 export const socialLogin = createAsyncThunk(
   'auth/socialLogin',
@@ -211,9 +227,9 @@ const authSlice = createSlice({
         state.token = action.payload.access_token;
         state.refreshToken = action.payload.refresh_token || null;
         state.isAuthenticated = true;
-        state.isEmailVerified = action.payload.user.isVerified;
-        // For existing users logging in, assume onboarding is completed
-        state.onboardingCompleted = action.payload.user.isVerified;
+        state.isEmailVerified = action.payload.user.emailVerified;
+        // If email is verified, assume onboarding is completed
+        state.onboardingCompleted = action.payload.user.emailVerified;
         state.error = null;
         state.retryCount = 0;
         state.isRetrying = false;
@@ -268,7 +284,9 @@ const authSlice = createSlice({
           state.user = action.payload.user;
           state.token = action.payload.token;
           state.isAuthenticated = true;
-          state.isEmailVerified = action.payload.user.isVerified;
+          state.isEmailVerified = action.payload.user.emailVerified;
+          // If email is verified, assume onboarding is completed
+          state.onboardingCompleted = action.payload.user.emailVerified;
         }
         state.lastOperation = null;
       })
@@ -291,7 +309,7 @@ const authSlice = createSlice({
         state.token = action.payload.access_token;
         state.refreshToken = action.payload.refresh_token || null;
         state.isAuthenticated = true;
-        state.isEmailVerified = action.payload.user.isVerified;
+        state.isEmailVerified = action.payload.user.emailVerified;
         state.error = null;
         state.retryCount = 0;
         state.isRetrying = false;
@@ -306,6 +324,13 @@ const authSlice = createSlice({
       // Logout
       .addCase(logoutUser.fulfilled, (state) => {
         return initialState;
+      })
+      // Refresh user profile
+      .addCase(refreshUserProfile.fulfilled, (state, action) => {
+        if (state.user) {
+          state.user = action.payload;
+          state.isEmailVerified = action.payload.emailVerified;
+        }
       });
   },
 });

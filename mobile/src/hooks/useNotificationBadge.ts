@@ -9,6 +9,7 @@ interface NotificationCounts {
   jobs: number;
   payments: number;
   reviews: number;
+  notifications: number;
   total: number;
 }
 
@@ -18,6 +19,7 @@ export const useNotificationBadge = () => {
     jobs: 0,
     payments: 0,
     reviews: 0,
+    notifications: 0,
     total: 0,
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -82,8 +84,23 @@ export const useNotificationBadge = () => {
     
     try {
       setIsLoading(true);
-      const notificationCounts = await apiService.getNotificationCounts();
-      setCounts(notificationCounts);
+      
+      // Get badge counts and unread notifications
+      const [badgeCounts, unreadNotifications] = await Promise.all([
+        apiService.getNotificationCounts(),
+        apiService.getUnreadNotifications(100)
+      ]);
+      
+      const unreadCount = Array.isArray(unreadNotifications) ? unreadNotifications.length : 0;
+      
+      setCounts({
+        messages: (badgeCounts as any)?.messages || 0,
+        jobs: (badgeCounts as any)?.jobs || 0,
+        payments: (badgeCounts as any)?.payments || 0,
+        reviews: (badgeCounts as any)?.reviews || 0,
+        notifications: unreadCount,
+        total: (badgeCounts as any)?.total || unreadCount,
+      });
     } catch (error) {
       console.error('Error loading notification counts:', error);
     } finally {
@@ -129,6 +146,7 @@ export const useNotificationBadge = () => {
       jobs: 0,
       payments: 0,
       reviews: 0,
+      notifications: 0,
       total: 0,
     });
   };

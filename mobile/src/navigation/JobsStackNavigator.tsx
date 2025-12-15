@@ -10,6 +10,7 @@ import JobDetailScreen from '@/screens/jobs/JobDetailScreen';
 import JobPostScreen from '@/screens/jobs/JobPostScreen';
 import JobApplicationScreen from '@/screens/jobs/JobApplicationScreen';
 import JobManagementScreen from '@/screens/jobs/JobManagementScreen';
+import { UserProfileViewScreen } from '@/screens/profile';
 
 const Stack = createNativeStackNavigator<JobsStackParamList>();
 
@@ -20,7 +21,7 @@ export default function JobsStackNavigator() {
   return (
     <Stack.Navigator
       screenOptions={{
-        headerShown: true,
+        headerShown: false, // All screens handle their own headers
         headerStyle: {
           backgroundColor: '#007AFF',
         },
@@ -36,7 +37,6 @@ export default function JobsStackNavigator() {
         component={JobsScreen}
         options={{
           title: isWorker ? 'Find Work' : 'My Jobs',
-          headerShown: false, // Let the screen handle its own header
         }}
       />
       <Stack.Screen 
@@ -44,7 +44,6 @@ export default function JobsStackNavigator() {
         component={JobMapScreen}
         options={{
           title: 'Jobs Map',
-          headerShown: false, // Let the screen handle its own header
         }}
       />
       <Stack.Screen 
@@ -78,7 +77,15 @@ export default function JobsStackNavigator() {
         name="JobManagement" 
         component={JobManagementScreen}
         options={{
-          title: isWorker ? 'My Applications' : 'Manage Jobs',
+          title: 'Job Management',
+        }}
+      />
+      <Stack.Screen 
+        name="UserProfileView" 
+        component={UserProfileViewScreen}
+        options={{
+          headerShown: false,
+          presentation: 'modal',
         }}
       />
     </Stack.Navigator>

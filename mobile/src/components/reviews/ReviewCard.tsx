@@ -16,8 +16,8 @@ import { HapticService } from '../../utils/haptics';
 
 interface ReviewCardProps {
   review: Review;
+  onPress?: (review: Review) => void;
   onReport?: (reviewId: number, reason: string) => void;
-  onRespond?: (reviewId: number, response: string) => void;
   onEdit?: (reviewId: number, rating: number, comment: string) => void;
   showActions?: boolean;
   currentUserId?: number;
@@ -25,25 +25,22 @@ interface ReviewCardProps {
 
 export const ReviewCard: React.FC<ReviewCardProps> = ({
   review,
+  onPress,
   onReport,
-  onRespond,
   onEdit,
   showActions = true,
   currentUserId: propCurrentUserId,
 }) => {
   const { currentUserId: authCurrentUserId } = useAuth();
   const [showReportModal, setShowReportModal] = useState(false);
-  const [showResponseModal, setShowResponseModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [reportReason, setReportReason] = useState('');
-  const [responseText, setResponseText] = useState('');
   const [editRating, setEditRating] = useState(review.rating);
   const [editComment, setEditComment] = useState(review.comment);
 
   // Use prop currentUserId if provided, otherwise use auth context
   const currentUserId = propCurrentUserId || authCurrentUserId;
 
-  const canRespond = currentUserId === review.revieweeId && !review.response;
   const canReport = currentUserId !== review.reviewerId && !review.isReported;
   const canEdit = currentUserId === review.reviewerId && review.status === 'approved';
   
@@ -63,14 +60,7 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
     }
   };
 
-  const handleRespond = async () => {
-    if (responseText.trim() && onRespond) {
-      await HapticService.success();
-      onRespond(review.id, responseText.trim());
-      setShowResponseModal(false);
-      setResponseText('');
-    }
-  };
+
 
   const handleEdit = async () => {
     if (editComment.trim() && editRating > 0 && onEdit) {
@@ -94,7 +84,11 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
   };
 
   return (
-    <View style={styles.container}>
+    <TouchableOpacity 
+      style={styles.container}
+      onPress={() => onPress?.(review)}
+      activeOpacity={onPress ? 0.7 : 1}
+    >
       <View style={styles.header}>
         <View style={styles.reviewerInfo}>
           <Text style={styles.reviewerName}>{review.reviewerName}</Text>
@@ -132,18 +126,6 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
             >
               <Ionicons name="create-outline" size={16} color="#007AFF" />
               <Text style={styles.actionText}>Edit</Text>
-            </TouchableOpacity>
-          )}
-          {canRespond && (
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={async () => {
-                await HapticService.light();
-                setShowResponseModal(true);
-              }}
-            >
-              <Ionicons name="chatbubble-outline" size={16} color="#007AFF" />
-              <Text style={styles.actionText}>Respond</Text>
             </TouchableOpacity>
           )}
           {canReport && (
@@ -201,45 +183,7 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
         </View>
       </Modal>
 
-      {/* Response Modal */}
-      <Modal
-        visible={showResponseModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowResponseModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Respond to Review</Text>
-            <Text style={styles.modalSubtitle}>
-              Share your perspective on this review:
-            </Text>
-            <TextInput
-              style={styles.textInput}
-              placeholder="Your response..."
-              value={responseText}
-              onChangeText={setResponseText}
-              multiline
-              numberOfLines={4}
-              textAlignVertical="top"
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setShowResponseModal(false)}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.submitButton]}
-                onPress={handleRespond}
-              >
-                <Text style={styles.submitButtonText}>Respond</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+
 
       {/* Edit Review Modal */}
       <Modal
@@ -304,7 +248,7 @@ export const ReviewCard: React.FC<ReviewCardProps> = ({
           </View>
         </View>
       </Modal>
-    </View>
+    </TouchableOpacity>
   );
 };
 

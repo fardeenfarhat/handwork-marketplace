@@ -5,13 +5,18 @@ import { useSelector } from 'react-redux';
 import { PaymentStackParamList } from '@/types';
 import { RootState } from '@/store';
 import PaymentMethodsScreen from '@/screens/payments/PaymentMethodsScreen';
+import BankAccountScreen from '@/screens/payments/BankAccountScreen';
 import AddPaymentMethodScreen from '@/screens/payments/AddPaymentMethodScreen';
+import PaymentScreen from '@/screens/payments/PaymentScreen';
+import PaymentConfirmationScreen from '@/screens/payments/PaymentConfirmationScreen';
 import BookingConfirmationScreen from '@/screens/payments/BookingConfirmationScreen';
 import JobTrackingScreen from '@/screens/payments/JobTrackingScreen';
 import CompletionVerificationScreen from '@/screens/payments/CompletionVerificationScreen';
 import PaymentHistoryScreen from '@/screens/payments/PaymentHistoryScreen';
 import DisputeReportScreen from '@/screens/payments/DisputeReportScreen';
 import DisputeDetailScreen from '@/screens/payments/DisputeDetailScreen';
+import EarningsScreen from '@/screens/payments/EarningsScreen';
+import PayoutRequestScreen from '@/screens/payments/PayoutRequestScreen';
 
 const Stack = createNativeStackNavigator<PaymentStackParamList>();
 
@@ -22,7 +27,7 @@ export default function PaymentStackNavigator() {
   return (
     <Stack.Navigator
       screenOptions={{
-        headerShown: true,
+        headerShown: false, // All screens handle their own headers
         headerStyle: {
           backgroundColor: '#007AFF',
         },
@@ -35,9 +40,9 @@ export default function PaymentStackNavigator() {
     >
       <Stack.Screen 
         name="PaymentMethods" 
-        component={PaymentMethodsScreen}
+        component={isWorker ? BankAccountScreen : PaymentMethodsScreen}
         options={{
-          title: isWorker ? 'Payout Methods' : 'Payment Methods',
+          title: isWorker ? 'Bank Account' : 'Payment Methods',
           headerShown: false, // Let the screen handle its own header
         }}
       />
@@ -47,6 +52,23 @@ export default function PaymentStackNavigator() {
         options={{
           title: isWorker ? 'Add Payout Method' : 'Add Payment Method',
           presentation: 'modal',
+        }}
+      />
+      <Stack.Screen 
+        name="Payment" 
+        component={PaymentScreen}
+        options={{
+          title: 'Payment',
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen 
+        name="PaymentConfirmation" 
+        component={PaymentConfirmationScreen}
+        options={{
+          title: 'Payment Confirmation',
+          headerShown: false,
+          gestureEnabled: false,
         }}
       />
       <Stack.Screen 
@@ -92,6 +114,23 @@ export default function PaymentStackNavigator() {
         component={DisputeDetailScreen}
         options={{
           title: 'Dispute Details',
+        }}
+      />
+      <Stack.Screen 
+        name="Earnings" 
+        component={EarningsScreen}
+        options={{
+          title: 'Earnings',
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen 
+        name="PayoutRequest" 
+        component={PayoutRequestScreen}
+        options={{
+          title: 'Request Payout',
+          headerShown: false,
+          presentation: 'modal',
         }}
       />
     </Stack.Navigator>

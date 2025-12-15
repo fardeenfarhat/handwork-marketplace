@@ -29,15 +29,25 @@ const Login: React.FC = () => {
     <div className="login-container">
       <div className="login-form">
         <div className="logo">
-          <i className="fas fa-tools"></i>
-          <h1>Admin Dashboard</h1>
+          <div className="logo-circle">
+            <i className="fas fa-hammer"></i>
+          </div>
+          <h1>Handwork Admin</h1>
+          <p>Manage your marketplace</p>
         </div>
+        {error && (
+          <div className="error-message">
+            <i className="fas fa-exclamation-triangle"></i>
+            {error}
+          </div>
+        )}
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label htmlFor="email">Email</label>
+            <label htmlFor="email">Email Address</label>
             <input
               type="email"
               id="email"
+              placeholder="Enter your admin email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -49,27 +59,27 @@ const Login: React.FC = () => {
             <input
               type="password"
               id="password"
+              placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
               disabled={loading}
             />
           </div>
-          <button type="submit" className="btn btn-primary" disabled={loading}>
+          <button type="submit" className="btn-primary" disabled={loading}>
             {loading ? (
               <>
                 <i className="fas fa-spinner fa-spin"></i>
-                Logging in...
+                Signing In...
               </>
             ) : (
               <>
                 <i className="fas fa-sign-in-alt"></i>
-                Login
+                Sign In to Dashboard
               </>
             )}
           </button>
         </form>
-        {error && <div className="error-message">{error}</div>}
       </div>
     </div>
   );

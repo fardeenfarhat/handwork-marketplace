@@ -17,7 +17,10 @@ depends_on = None
 
 
 def upgrade():
-    # Add 'admin' value to userrole enum (lowercase to match existing values)
+    # Add lowercase values to userrole enum to match code expectations
+    # The enum was created with uppercase values but code uses lowercase
+    op.execute("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'client'")
+    op.execute("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'worker'")
     op.execute("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'admin'")
 
 

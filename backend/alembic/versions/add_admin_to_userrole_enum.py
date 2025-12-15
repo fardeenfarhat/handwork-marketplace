@@ -1,7 +1,7 @@
 """add admin to userrole enum
 
 Revision ID: add_admin_role
-Revises: 20fcf890e9d4
+Revises: stripe_connect_001
 Create Date: 2025-12-15 00:00:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_admin_role'
-down_revision = '20fcf890e9d4'
+down_revision = 'stripe_connect_001'
 branch_labels = None
 depends_on = None
 

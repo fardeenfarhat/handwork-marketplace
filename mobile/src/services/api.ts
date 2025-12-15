@@ -24,6 +24,10 @@ class ApiService {
     } catch (error) {
       if (error instanceof RetryError) {
         console.log(`💥 Request failed after ${error.attempts} attempts`);
+        // For retry errors, preserve the original error details if available
+        if (error.lastError?.status || error.lastError?.statusCode) {
+          throw error.lastError;
+        }
         throw new Error(error.message);
       }
       throw error;
@@ -66,9 +70,12 @@ class ApiService {
       }
     }
 
+    // Check if body is FormData - if so, don't set Content-Type (let browser handle it)
+    const isFormData = options.body instanceof FormData;
+    
     const config: RequestInit = {
       headers: {
-        'Content-Type': 'application/json',
+        ...(!isFormData && { 'Content-Type': 'application/json' }),
         ...(this.token && { Authorization: `Bearer ${this.token}` }),
         ...options.headers,
       },
@@ -102,11 +109,22 @@ class ApiService {
 
       if (!response.ok) {
         console.log('❌ Response not OK, parsing error...');
-        const error = await response
+        const errorData = await response
           .json()
-          .catch(() => ({ message: 'Network error' }));
-        console.log('💥 Error details:', error);
-        throw new Error(error.message || `HTTP ${response.status}`);
+          .catch(() => ({ message: `HTTP ${response.status}` }));
+        console.log('💥 Error details:', errorData);
+        
+        // Create an error that preserves the response status and data
+        const apiError: any = new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
+        apiError.response = {
+          status: response.status,
+          statusText: response.statusText,
+          data: errorData
+        };
+        apiError.status = response.status;
+        apiError.statusCode = response.status;
+        
+        throw apiError;
       }
 
       console.log('📥 Parsing response JSON...');
@@ -150,14 +168,15 @@ class ApiService {
         throw new Error(API_CONFIG.ERROR_MESSAGES.TIMEOUT);
       }
 
-      // Handle network errors
+      // Handle network errors - but only if error doesn't have status code (real network issues)
       if (
-        !navigator.onLine ||
-        error?.message?.toLowerCase().includes('network')
+        (!navigator.onLine && !error?.status && !error?.statusCode) ||
+        (error?.message?.toLowerCase().includes('network') && !error?.status && !error?.statusCode)
       ) {
         throw new Error(API_CONFIG.ERROR_MESSAGES.NETWORK);
       }
 
+      // If error has status code, preserve it (it's a proper HTTP error)
       throw error;
     }
   }
@@ -171,6 +190,9 @@ class ApiService {
       firstName: backendUser.first_name,
       lastName: backendUser.last_name,
       isVerified: backendUser.is_verified,
+      emailVerified: backendUser.email_verified,
+      phoneVerified: backendUser.phone_verified,
+      isActive: backendUser.is_active,
     };
   }
 
@@ -403,25 +425,86 @@ class ApiService {
   }
 
   async uploadKYCDocuments(formData: FormData) {
-    return this.request('/users/kyc/upload', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'multipart/form-data',
-        ...(this.token && { Authorization: `Bearer ${this.token}` }),
-      },
-      body: formData,
-    });
+    // Extract documents from FormData and upload them individually
+    const documents: Array<{ file: any; type: string }> = [];
+    
+    // Parse the FormData to extract document info
+    const parts = (formData as any)._parts || [];
+    for (let i = 0; i < parts.length; i += 2) {
+      if (parts[i] && parts[i][0].startsWith('document_') && !parts[i][0].includes('_type')) {
+        const fileData = parts[i][1];
+        const typeData = parts[i + 1] && parts[i + 1][1];
+        
+        if (fileData && typeData) {
+          documents.push({
+            file: fileData,
+            type: typeData
+          });
+        }
+      }
+    }
+
+    // Upload each document individually
+    const results = [];
+    for (const doc of documents) {
+      const singleFormData = new FormData();
+      singleFormData.append('file', {
+        uri: doc.file.uri,
+        type: doc.file.type,
+        name: doc.file.name,
+      } as any);
+      singleFormData.append('document_type', doc.type);
+
+      const result = await this.request('/profiles/upload/kyc-document', {
+        method: 'POST',
+        headers: {
+          // Don't set Content-Type for FormData - let the browser set it with boundary
+          ...(this.token && { Authorization: `Bearer ${this.token}` }),
+        },
+        body: singleFormData,
+      });
+      
+      results.push(result);
+    }
+
+    return { results, status: 'pending' };
   }
 
   async updatePortfolio(formData: FormData) {
-    return this.request('/users/portfolio', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'multipart/form-data',
-        ...(this.token && { Authorization: `Bearer ${this.token}` }),
-      },
-      body: formData,
-    });
+    // Extract images from FormData and upload them individually
+    const images: Array<any> = [];
+    
+    // Parse the FormData to extract image info
+    const parts = (formData as any)._parts || [];
+    for (const [key, value] of parts) {
+      if (key.startsWith('image_')) {
+        images.push(value);
+      }
+    }
+
+    // Upload each image individually
+    const results = [];
+    for (const imageData of images) {
+      const singleFormData = new FormData();
+      singleFormData.append('file', {
+        uri: imageData.uri,
+        type: imageData.type,
+        name: imageData.name,
+      } as any);
+
+      const result = await this.request('/profiles/upload/portfolio-image', {
+        method: 'POST',
+        headers: {
+          // Don't set Content-Type for FormData - let the browser set it with boundary
+          ...(this.token && { Authorization: `Bearer ${this.token}` }),
+        },
+        body: singleFormData,
+      });
+      
+      results.push(result);
+    }
+
+    return { results };
   }
 
   // Client Profile endpoints
@@ -468,6 +551,25 @@ class ApiService {
     });
   }
 
+  // Profile View endpoints (for viewing other users' profiles)
+  async getWorkerProfileById(userId: number) {
+    try {
+      return await this.request<WorkerProfile>(`/users/${userId}/worker-profile`);
+    } catch (error) {
+      console.log('⚠️ Worker profile by ID endpoint not available');
+      throw new Error('Worker profile not found');
+    }
+  }
+
+  async getClientProfileById(userId: number) {
+    try {
+      return await this.request<ClientProfile>(`/users/${userId}/client-profile`);
+    } catch (error) {
+      console.log('⚠️ Client profile by ID endpoint not available');
+      throw new Error('Client profile not found');
+    }
+  }
+
   // Job endpoints
   async getJobs(filters?: {
     category?: string;
@@ -490,12 +592,71 @@ class ApiService {
       });
     }
 
-    const endpoint = `/jobs${queryParams.toString() ? `?${queryParams}` : ''}`;
-    return this.request<Job[]>(endpoint);
+    const endpoint = `/jobs/${queryParams.toString() ? `?${queryParams}` : ''}`;
+    const response = await this.request<{
+      jobs: any[];
+      total: number;
+      page: number;
+      limit: number;
+      has_next: boolean;
+    }>(endpoint);
+
+    console.log('🔍 RAW API RESPONSE:', JSON.stringify(response, null, 2));
+
+    // Transform snake_case API response to camelCase for frontend
+    const transformedJobs: Job[] = response.jobs.map((job: any) => ({
+      id: job.id,
+      clientId: job.client_id,
+      title: job.title,
+      description: job.description,
+      category: job.category,
+      budgetMin: parseFloat(job.budget_min),
+      budgetMax: parseFloat(job.budget_max),
+      location: job.location,
+      latitude: job.latitude,
+      longitude: job.longitude,
+      preferredDate: job.preferred_date,
+      status: job.status,
+      createdAt: job.created_at,
+      updatedAt: job.updated_at,
+      requirements: job.requirements ? Object.values(job.requirements) : undefined,
+      clientName: job.client_name,
+      clientRating: job.client_rating,
+      applicationsCount: job.application_count,
+      distance: job.distance_km,
+    }));
+
+    console.log('🔍 TRANSFORMED JOBS (getJobs):', JSON.stringify(transformedJobs, null, 2));
+    console.log('🔍 JOBS COUNT (getJobs):', transformedJobs.length);
+
+    return transformedJobs;
   }
 
   async getJob(jobId: number) {
-    return this.request<Job>(`/jobs/${jobId}`);
+    const job = await this.request<any>(`/jobs/${jobId}`);
+    
+    // Transform snake_case API response to camelCase for frontend
+    return {
+      id: job.id,
+      clientId: job.client_id,
+      title: job.title,
+      description: job.description,
+      category: job.category,
+      budgetMin: parseFloat(job.budget_min),
+      budgetMax: parseFloat(job.budget_max),
+      location: job.location,
+      latitude: job.latitude,
+      longitude: job.longitude,
+      preferredDate: job.preferred_date,
+      status: job.status,
+      createdAt: job.created_at,
+      updatedAt: job.updated_at,
+      requirements: job.requirements ? Object.values(job.requirements) : undefined,
+      clientName: job.client_name,
+      clientRating: job.client_rating,
+      applicationsCount: job.application_count,
+      distance: job.distance_km,
+    } as Job;
   }
 
   async createJob(
@@ -531,16 +692,39 @@ class ApiService {
       JSON.stringify(backendData, null, 2)
     );
 
-    return this.request<Job>('/jobs', {
+    return this.request<Job>('/jobs/', {
       method: 'POST',
       body: JSON.stringify(backendData),
     });
   }
 
-  async updateJob(jobId: number, jobData: Partial<Job>) {
+  async updateJob(jobId: number, jobData: any) {
+    // Convert camelCase to snake_case and transform requirements
+    const backendData: any = {};
+    
+    if (jobData.title !== undefined) backendData.title = jobData.title;
+    if (jobData.description !== undefined) backendData.description = jobData.description;
+    if (jobData.category !== undefined) backendData.category = jobData.category;
+    if (jobData.budgetMin !== undefined) backendData.budget_min = jobData.budgetMin;
+    if (jobData.budgetMax !== undefined) backendData.budget_max = jobData.budgetMax;
+    if (jobData.location !== undefined) backendData.location = jobData.location;
+    if (jobData.preferredDate !== undefined) backendData.preferred_date = jobData.preferredDate;
+    
+    // Transform requirements array to dict if present
+    if (jobData.requirements !== undefined) {
+      if (Array.isArray(jobData.requirements)) {
+        backendData.requirements = jobData.requirements.reduce((acc: any, req: string, index: number) => {
+          acc[index.toString()] = req;
+          return acc;
+        }, {});
+      } else {
+        backendData.requirements = jobData.requirements;
+      }
+    }
+
     return this.request<Job>(`/jobs/${jobId}`, {
       method: 'PUT',
-      body: JSON.stringify(jobData),
+      body: JSON.stringify(backendData),
     });
   }
 
@@ -552,9 +736,16 @@ class ApiService {
       proposedStartDate: string;
     }
   ) {
-    return this.request(`/jobs/${jobId}/apply`, {
+    // Convert camelCase to snake_case for backend compatibility
+    const backendData = {
+      message: applicationData.message,
+      proposed_rate: applicationData.proposedRate,
+      proposed_start_date: applicationData.proposedStartDate,
+    };
+
+    return this.request(`/jobs/${jobId}/applications`, {
       method: 'POST',
-      body: JSON.stringify(applicationData),
+      body: JSON.stringify(backendData),
     });
   }
 
@@ -564,22 +755,122 @@ class ApiService {
     });
   }
 
+  // Application management endpoints
+  async acceptApplication(applicationId: number) {
+    return this.request(`/jobs/applications/${applicationId}/accept`, {
+      method: 'PATCH',
+    });
+  }
+
+  async rejectApplication(applicationId: number) {
+    return this.request(`/jobs/applications/${applicationId}/reject`, {
+      method: 'PATCH',
+    });
+  }
+
   // Client-specific job endpoints
   async getClientJobs() {
-    return this.request<Job[]>('/jobs/client/posted');
+    const response = await this.request<{
+      jobs: any[];
+      total: number;
+      page: number;
+      limit: number;
+      has_next: boolean;
+    }>('/jobs/client/posted');
+
+    // Transform snake_case API response to camelCase for frontend
+    const transformedJobs: Job[] = response.jobs.map((job: any) => ({
+      id: job.id,
+      clientId: job.client_id,
+      title: job.title,
+      description: job.description,
+      category: job.category,
+      budgetMin: parseFloat(job.budget_min),
+      budgetMax: parseFloat(job.budget_max),
+      location: job.location,
+      latitude: job.latitude,
+      longitude: job.longitude,
+      preferredDate: job.preferred_date,
+      status: job.status,
+      createdAt: job.created_at,
+      updatedAt: job.updated_at,
+      requirements: job.requirements ? Object.values(job.requirements) : undefined,
+      clientName: job.client_name,
+      clientRating: job.client_rating,
+      applicationsCount: job.application_count,
+      distance: job.distance_km,
+    }));
+
+    return transformedJobs;
   }
 
   async getClientApplications() {
-    return this.request('/jobs/client/applications');
+    const response = await this.request<{
+      applications: any[];
+      total: number;
+    }>('/jobs/client/applications');
+
+    // Transform snake_case API response to camelCase for frontend
+    const transformedApplications = response.applications.map((app: any) => ({
+      id: app.id,
+      jobId: app.job_id,
+      workerId: app.worker_id,
+      message: app.message,
+      proposedRate: parseFloat(app.proposed_rate) || 0,
+      proposedStartDate: app.proposed_start_date,
+      status: app.status,
+      createdAt: app.created_at,
+      workerName: app.worker_name,
+      workerRating: app.worker_rating || 0,
+      workerSkills: app.worker_skills || [],
+    }));
+
+    return transformedApplications;
   }
 
   // Worker-specific job endpoints
   async getWorkerAppliedJobs() {
-    return this.request<Job[]>('/jobs/worker/applied');
+    // Since there's no direct endpoint for jobs a worker applied to,
+    // we'll get the worker's applications and extract unique job info
+    try {
+      const applications = await this.getWorkerApplications();
+      
+      // Get unique job IDs from applications
+      const jobIds = [...new Set(applications.map(app => app.jobId))];
+      
+      // Fetch job details for each applied job
+      const jobPromises = jobIds.map(jobId => this.getJob(jobId));
+      const jobs = await Promise.all(jobPromises);
+      
+      return jobs;
+    } catch (error) {
+      console.log('Failed to get worker applied jobs:', error);
+      return [];
+    }
   }
 
   async getWorkerApplications() {
-    return this.request('/jobs/worker/applications');
+    const response = await this.request<{
+      applications: any[];
+      total: number;
+    }>('/jobs/applications/my');
+
+    // Transform snake_case API response to camelCase for frontend
+    const transformedApplications = response.applications.map((app: any) => ({
+      id: app.id,
+      jobId: app.job_id,
+      workerId: app.worker_id,
+      message: app.message,
+      proposedRate: parseFloat(app.proposed_rate) || 0,
+      proposedStartDate: app.proposed_start_date,
+      status: app.status,
+      createdAt: app.created_at,
+      workerName: app.worker_name,
+      workerRating: app.worker_rating || 0,
+      workerSkills: app.worker_skills || [],
+    }));
+
+    return transformedApplications;
   }
 
   async getJobApplications(jobId: number) {
@@ -599,8 +890,8 @@ class ApiService {
   }
 
   async withdrawApplication(applicationId: number) {
-    return this.request(`/applications/${applicationId}/withdraw`, {
-      method: 'POST',
+    return this.request(`/jobs/applications/${applicationId}/withdraw`, {
+      method: 'PATCH',
     });
   }
 
@@ -635,7 +926,7 @@ class ApiService {
     return this.request<{ url: string }>('/messages/upload', {
       method: 'POST',
       headers: {
-        'Content-Type': 'multipart/form-data',
+        // Don't set Content-Type for FormData - let the browser set it with boundary
         ...(this.token && { Authorization: `Bearer ${this.token}` }),
       },
       body: formData,
@@ -707,17 +998,69 @@ class ApiService {
   }
 
   async getBooking(bookingId: number) {
-    return this.request(`/bookings/${bookingId}`);
+    const booking = await this.request<any>(`/bookings/${bookingId}`);
+    
+    // Transform snake_case to camelCase
+    return {
+      id: booking.id,
+      jobId: booking.job_id,
+      workerId: booking.worker_id,
+      clientId: booking.client_id,
+      workerName: booking.worker_name,
+      clientName: booking.client_name,
+      jobTitle: booking.job_title,
+      jobDescription: booking.job_description,
+      jobCategory: booking.job_category,
+      startDate: booking.start_date,
+      endDate: booking.end_date,
+      agreedRate: booking.agreed_rate,
+      status: booking.status,
+      completionNotes: booking.completion_notes,
+      completionPhotos: booking.completion_photos || [],
+      createdAt: booking.created_at,
+      workerRating: booking.worker_rating,
+      payment: booking.payment,
+      hasUserReview: booking.has_user_review,
+      clientUserId: booking.client_user_id,
+      workerUserId: booking.worker_user_id
+    };
   }
 
   async getBookings(status?: string) {
     const params = status ? `?status=${status}` : '';
-    return this.request<any[]>(`/bookings${params}`);
+    const response = await this.request<{bookings: any[], total: number, page: number, per_page: number}>(`/bookings${params}`);
+    
+    // Transform snake_case to camelCase for bookings
+    const transformedBookings = (response?.bookings || []).map((booking: any) => ({
+      id: booking.id,
+      jobId: booking.job_id,
+      workerId: booking.worker_id,
+      clientId: booking.client_id,
+      workerName: booking.worker_name,
+      clientName: booking.client_name,
+      jobTitle: booking.job_title,
+      jobDescription: booking.job_description,
+      jobCategory: booking.job_category,
+      startDate: booking.start_date,
+      endDate: booking.end_date,
+      agreedRate: booking.agreed_rate,
+      status: booking.status,
+      completionNotes: booking.completion_notes,
+      completionPhotos: booking.completion_photos || [],
+      createdAt: booking.created_at,
+      workerRating: booking.worker_rating,
+      payment: booking.payment,
+      hasUserReview: booking.has_user_review,
+      clientUserId: booking.client_user_id,
+      workerUserId: booking.worker_user_id
+    }));
+
+    return transformedBookings;
   }
 
   async updateBookingStatus(bookingId: number, status: string, notes?: string) {
     return this.request(`/bookings/${bookingId}/status`, {
-      method: 'PUT',
+      method: 'PATCH',
       body: JSON.stringify({ status, notes }),
     });
   }
@@ -729,9 +1072,13 @@ class ApiService {
       photos: string[];
     }
   ) {
-    return this.request(`/bookings/${bookingId}/complete`, {
-      method: 'POST',
-      body: JSON.stringify(completionData),
+    return this.request(`/bookings/${bookingId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        status: 'COMPLETED',
+        completion_notes: completionData.notes,
+        completion_photos: completionData.photos
+      }),
     });
   }
 
@@ -739,14 +1086,25 @@ class ApiService {
     return this.request<any[]>(`/bookings/${bookingId}/timeline`);
   }
 
-  async uploadCompletionPhoto(formData: FormData) {
-    return this.request<{ url: string }>('/bookings/upload-photo', {
+  async uploadCompletionPhoto(bookingId: number, formData: FormData) {
+    return this.request<{ url: string }>(`/bookings/${bookingId}/completion-photos`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'multipart/form-data',
+        // Don't set Content-Type for FormData - let the browser set it with boundary
         ...(this.token && { Authorization: `Bearer ${this.token}` }),
       },
       body: formData,
+    });
+  }
+
+  async reportBookingIssue(bookingId: number, reportData: {
+    issueType: string;
+    description: string;
+    reportedBy: number;
+  }) {
+    return this.request(`/bookings/${bookingId}/report`, {
+      method: 'POST',
+      body: JSON.stringify(reportData),
     });
   }
 
@@ -775,7 +1133,7 @@ class ApiService {
     return this.request<{ url: string }>('/disputes/upload-evidence', {
       method: 'POST',
       headers: {
-        'Content-Type': 'multipart/form-data',
+        // Don't set Content-Type for FormData - let the browser set it with boundary
         ...(this.token && { Authorization: `Bearer ${this.token}` }),
       },
       body: formData,
@@ -784,9 +1142,13 @@ class ApiService {
 
   // Review endpoints
   async getReviews(filters?: {
-    userId?: number;
+    reviewee_id?: number;
+    reviewer_id?: number;
+    booking_id?: number;
     rating?: number;
     status?: string;
+    page?: number;
+    per_page?: number;
     sortBy?: string;
     sortOrder?: string;
   }) {
@@ -800,22 +1162,80 @@ class ApiService {
     }
 
     const endpoint = `/reviews${queryParams.toString() ? `?${queryParams}` : ''}`;
-    return this.request<any[]>(endpoint);
+    const response = await this.request<{
+      reviews: any[];
+      total: number;
+      page: number;
+      per_page: number;
+      total_pages: number;
+    }>(endpoint);
+
+    // Transform snake_case API response to camelCase for frontend
+    const transformedReviews = response.reviews.map((review: any) => ({
+      id: review.id,
+      bookingId: review.booking_id,
+      reviewerId: review.reviewer_id,
+      revieweeId: review.reviewee_id,
+      reviewerName: review.reviewer_name,
+      revieweeName: review.reviewee_name || 'Unknown User', // Fallback if not provided
+      jobTitle: review.job_title,
+      rating: review.rating,
+      comment: review.comment,
+      status: review.status,
+      createdAt: review.created_at,
+      updatedAt: review.updated_at,
+      response: review.response,
+      isReported: review.is_reported || false,
+      reportReason: review.report_reason,
+    }));
+
+    return {
+      ...response,
+      reviews: transformedReviews
+    };
   }
 
   async getReview(reviewId: number) {
-    return this.request(`/reviews/${reviewId}`);
+    const review = await this.request(`/reviews/${reviewId}`);
+    
+    // Transform snake_case API response to camelCase for frontend
+    return {
+      id: review.id,
+      bookingId: review.booking_id,
+      reviewerId: review.reviewer_id,
+      revieweeId: review.reviewee_id,
+      reviewerName: review.reviewer_name || 'Unknown User',
+      revieweeName: review.reviewee_name || 'Unknown User',
+      jobTitle: review.job_title,
+      rating: review.rating,
+      comment: review.comment,
+      status: review.status,
+      createdAt: review.created_at,
+      updatedAt: review.updated_at,
+      response: review.response,
+      isReported: review.is_reported || false,
+      reportReason: review.report_reason,
+    };
   }
 
   async submitReview(reviewData: {
     bookingId: number;
-    revieweeId: number;
+    revieweeId?: number;  // Optional since backend auto-determines
     rating: number;
     comment: string;
   }) {
+    // Convert camelCase to snake_case for backend compatibility
+    const backendData = {
+      booking_id: reviewData.bookingId,
+      rating: reviewData.rating,
+      comment: reviewData.comment,
+      // Only include reviewee_id if provided (for backwards compatibility)
+      ...(reviewData.revieweeId && { reviewee_id: reviewData.revieweeId })
+    };
+    
     return this.request('/reviews', {
       method: 'POST',
-      body: JSON.stringify(reviewData),
+      body: JSON.stringify(backendData),
     });
   }
 
@@ -826,12 +1246,7 @@ class ApiService {
     });
   }
 
-  async respondToReview(reviewId: number, response: string) {
-    return this.request(`/reviews/${reviewId}/respond`, {
-      method: 'POST',
-      body: JSON.stringify({ response }),
-    });
-  }
+
 
   async moderateReview(
     reviewId: number,
@@ -848,6 +1263,37 @@ class ApiService {
     return this.request(`/reviews/rating-summary/${userId}`);
   }
 
+  async getDashboardData(): Promise<any> {
+    return this.request('/dashboard', { method: 'GET' });
+  }
+
+  async getUserReviewCount(userId: number): Promise<number> {
+    try {
+      // Use the same pattern as ReviewsListScreen: get all reviews for user as reviewee
+      const reviewsData = await this.getReviews({ 
+        reviewee_id: userId,
+        status: 'approved' 
+      });
+      // Return the count of reviews
+      return reviewsData.reviews?.length || 0;
+    } catch (error) {
+      console.error('Error getting user review count:', error);
+      return 0;
+    }
+  }
+
+  async getUserPublicInfo(userId: number) {
+    try {
+      // Try to get basic user information - this endpoint may not exist yet
+      // but we'll try it in case it gets implemented later
+      return await this.request(`/users/${userId}/public`);
+    } catch (error) {
+      console.log('⚠️ User public info endpoint not available');
+      // Fallback: try to get user info from other endpoints
+      throw new Error('User public information not available');
+    }
+  }
+
   // Additional methods needed by offline sync
   async getUnreadMessageCount() {
     return this.request<number>('/messages/unread-count');
@@ -861,9 +1307,17 @@ class ApiService {
   }
 
   async createReview(reviewData: any) {
+    // Convert camelCase to snake_case for backend compatibility if needed
+    const backendData = {
+      booking_id: reviewData.bookingId || reviewData.booking_id,
+      reviewee_id: reviewData.revieweeId || reviewData.reviewee_id,
+      rating: reviewData.rating,
+      comment: reviewData.comment,
+    };
+    
     return this.request('/reviews', {
       method: 'POST',
-      body: JSON.stringify(reviewData),
+      body: JSON.stringify(backendData),
     });
   }
 
@@ -874,9 +1328,61 @@ class ApiService {
     });
   }
 
-  // Notification badge methods
+  // Notification methods
   async getNotificationCounts() {
-    return this.request('/notifications/counts');
+    return this.request('/notifications/badge-count');
+  }
+
+  async getUnreadNotifications(limit: number = 50) {
+    return this.request(`/notifications/unread?limit=${limit}`);
+  }
+
+  async getNotificationHistory(limit: number = 100, offset: number = 0) {
+    return this.request(`/notifications/history?limit=${limit}&offset=${offset}`);
+  }
+
+  async markNotificationsAsRead(notificationIds: number[]) {
+    return this.request('/notifications/mark-read', {
+      method: 'PUT',
+      body: JSON.stringify(notificationIds),
+    });
+  }
+
+  async markAllNotificationsAsRead() {
+    return this.request('/notifications/mark-all-read', {
+      method: 'PUT',
+    });
+  }
+
+  async getNotificationPreferences() {
+    return this.request('/notifications/preferences');
+  }
+
+  async updateNotificationPreferences(preferences: any) {
+    return this.request('/notifications/preferences', {
+      method: 'PUT',
+      body: JSON.stringify(preferences),
+    });
+  }
+
+  async clearNotificationHistory() {
+    return this.request('/notifications/clear-history', {
+      method: 'DELETE',
+    });
+  }
+
+  async registerFCMToken(token: string, platform: string = 'mobile') {
+    return this.request('/notifications/register-token', {
+      method: 'POST',
+      body: JSON.stringify({ token, platform }),
+    });
+  }
+
+  async unregisterFCMToken(token: string) {
+    return this.request('/notifications/unregister-token', {
+      method: 'DELETE',
+      body: JSON.stringify({ token }),
+    });
   }
 
   // Edit review method
@@ -899,12 +1405,72 @@ class ApiService {
 
   // Portfolio methods
   async getPortfolio() {
-    return this.request('/users/portfolio');
+    const profile = await this.request<any>('/users/worker-profile');
+    return {
+      portfolioImages: (profile as any)?.portfolioImages || []
+    };
   }
 
   // KYC methods
   async getKYCStatus() {
     return this.request('/users/kyc/status');
+  }
+
+  // Bank Account methods for workers
+  async getWorkerBankAccount() {
+    return this.request('/profiles/worker/bank-account');
+  }
+
+  async addWorkerBankAccount(bankData: {
+    account_holder_name: string;
+    bank_name: string;
+    account_number: string;
+    routing_number: string;
+    bank_country: string;
+    bank_currency: string;
+  }) {
+    // Backend expects form data, not JSON
+    const formData = new FormData();
+    formData.append('account_holder_name', bankData.account_holder_name);
+    formData.append('bank_name', bankData.bank_name);
+    formData.append('account_number', bankData.account_number);
+    formData.append('routing_number', bankData.routing_number);
+    formData.append('bank_country', bankData.bank_country);
+    formData.append('bank_currency', bankData.bank_currency);
+
+    return this.request('/profiles/worker/bank-account', {
+      method: 'POST',
+      body: formData as any,
+    });
+  }
+
+  async deleteWorkerBankAccount() {
+    return this.request('/profiles/worker/bank-account', {
+      method: 'DELETE',
+    });
+  }
+
+  // Stripe Connect methods for workers
+  async getWorkerStripeAccount() {
+    return this.request('/payments/stripe-connect/account');
+  }
+
+  async createStripeOnboardingLink() {
+    return this.request('/payments/stripe-connect/onboard', {
+      method: 'POST',
+    });
+  }
+
+  async refreshStripeAccountLink() {
+    return this.request('/payments/stripe-connect/refresh-link', {
+      method: 'POST',
+    });
+  }
+
+  async disconnectStripeAccount() {
+    return this.request('/payments/stripe-connect/account', {
+      method: 'DELETE',
+    });
   }
 }
 

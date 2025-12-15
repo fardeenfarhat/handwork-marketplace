@@ -82,7 +82,7 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     phone = Column(String, unique=True, index=True)
     password_hash = Column(String, nullable=True)  # Nullable for OAuth users
-    role = Column(Enum(UserRole), nullable=False, index=True)
+    role = Column(Enum(UserRole, values_callable=lambda obj: [e.value for e in obj]), nullable=False, index=True)
     first_name = Column(String, nullable=False)
     last_name = Column(String, nullable=False)
     is_verified = Column(Boolean, default=False, index=True)

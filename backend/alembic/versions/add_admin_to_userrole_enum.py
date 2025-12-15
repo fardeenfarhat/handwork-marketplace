@@ -19,9 +19,12 @@ depends_on = None
 def upgrade():
     # Add lowercase values to userrole enum to match code expectations
     # The enum was created with uppercase values but code uses lowercase
-    op.execute("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'client'")
-    op.execute("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'worker'")
-    op.execute("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'admin'")
+    # Note: This must run outside a transaction
+    connection = op.get_bind()
+    connection.execute(sa.text("COMMIT"))  # End current transaction
+    connection.execute(sa.text("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'client'"))
+    connection.execute(sa.text("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'worker'"))
+    connection.execute(sa.text("ALTER TYPE userrole ADD VALUE IF NOT EXISTS 'admin'"))
 
 
 def downgrade():

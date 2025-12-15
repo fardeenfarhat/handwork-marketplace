@@ -874,3 +874,33 @@ async def get_current_user_info(
     """Get current user information"""
     
     return UserResponse.from_orm(current_user)
+
+@router.post("/create-admin", response_model=MessageResponse)
+async def create_admin_user(db: Session = Depends(get_db)):
+    """One-time endpoint to create admin user (remove after use)"""
+    
+    # Check if admin exists
+    admin = db.query(User).filter(User.role == UserRole.ADMIN).first()
+    if admin:
+        raise HTTPException(
+            status_code=400,
+            detail="Admin user already exists"
+        )
+    
+    # Create admin
+    admin_user = User(
+        email="admin@handworkmarketplace.com",
+        password_hash=get_password_hash("admin123"),
+        role=UserRole.ADMIN,
+        first_name="Admin",
+        last_name="User",
+        is_verified=True,
+        is_active=True,
+        email_verified=True,
+        phone_verified=False
+    )
+    
+    db.add(admin_user)
+    db.commit()
+    
+    return MessageResponse(message="Admin user created successfully. Email: admin@handworkmarketplace.com, Password: admin123")

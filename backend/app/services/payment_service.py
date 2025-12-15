@@ -1498,7 +1498,7 @@ class PaymentService:
         from app.db.models import Notification, NotificationType
         
         # Get admin users
-        admin_users = self.db.query(User).filter(User.role == "admin").all()
+        admin_users = self.db.query(User).filter(User.role == UserRole.ADMIN.value).all()
         
         for admin in admin_users:
             admin_notification = Notification(

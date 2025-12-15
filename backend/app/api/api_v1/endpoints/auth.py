@@ -879,8 +879,8 @@ async def get_current_user_info(
 async def create_admin_user(db: Session = Depends(get_db)):
     """One-time endpoint to create admin user (remove after use)"""
     
-    # Check if admin exists
-    admin = db.query(User).filter(User.role == UserRole.ADMIN).first()
+    # Check if admin exists - use string value instead of enum
+    admin = db.query(User).filter(User.role == "admin").first()
     if admin:
         raise HTTPException(
             status_code=400,
@@ -891,7 +891,7 @@ async def create_admin_user(db: Session = Depends(get_db)):
     admin_user = User(
         email="admin@handworkmarketplace.com",
         password_hash=get_password_hash("admin123"),
-        role=UserRole.ADMIN,
+        role="admin",  # Use string value
         first_name="Admin",
         last_name="User",
         is_verified=True,

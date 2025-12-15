@@ -1,7 +1,7 @@
 """add admin to userrole enum
 
 Revision ID: add_admin_role
-Revises: 232c2bf8d221
+Revises: 20fcf890e9d4
 Create Date: 2025-12-15 00:00:00.000000
 
 """
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision = 'add_admin_role'
-down_revision = 'ff9cee65dc59'  # Latest migration
+down_revision = '20fcf890e9d4'
 branch_labels = None
 depends_on = None
 

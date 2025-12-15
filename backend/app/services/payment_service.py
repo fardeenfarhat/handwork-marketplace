@@ -1496,9 +1496,10 @@ class PaymentService:
         
         # Send notification to admin (Requirement 7.2)
         from app.db.models import Notification, NotificationType
+        from sqlalchemy import cast, String
         
-        # Get admin users
-        admin_users = self.db.query(User).filter(User.role == UserRole.ADMIN.value).all()
+        # Get admin users - cast enum to string for comparison
+        admin_users = self.db.query(User).filter(cast(User.role, String) == "admin").all()
         
         for admin in admin_users:
             admin_notification = Notification(

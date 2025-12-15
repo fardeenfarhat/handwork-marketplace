@@ -6,7 +6,7 @@ import time
 from functools import wraps
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, cast, String
 
 from app.db.database import get_db, get_user_for_login
 from app.db.models import User, VerificationToken, OAuthAccount, TokenType, UserRole, WorkerProfile, ClientProfile
@@ -879,8 +879,8 @@ async def get_current_user_info(
 async def create_admin_user(db: Session = Depends(get_db)):
     """One-time endpoint to create admin user (remove after use)"""
     
-    # Check if admin exists - use enum value
-    admin = db.query(User).filter(User.role == UserRole.ADMIN.value).first()
+    # Check if admin exists - cast enum to string for comparison
+    admin = db.query(User).filter(cast(User.role, String) == "admin").first()
     if admin:
         raise HTTPException(
             status_code=400,
@@ -891,7 +891,7 @@ async def create_admin_user(db: Session = Depends(get_db)):
     admin_user = User(
         email="admin@handworkmarketplace.com",
         password_hash=get_password_hash("admin123"),
-        role=UserRole.ADMIN.value,  # Use enum value
+        role="admin",  # Pass string directly
         first_name="Admin",
         last_name="User",
         is_verified=True,

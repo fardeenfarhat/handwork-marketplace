@@ -46,6 +46,7 @@ const UserManagement: React.FC = () => {
 
   useEffect(() => {
     loadUsers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagination.page, pagination.size]);
 
   const loadUsers = async () => {

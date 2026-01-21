@@ -31,7 +31,7 @@ const Dashboard: React.FC = () => {
     if (currentItem) {
       setActiveSection(currentItem.id);
     }
-  }, [location.pathname]);
+  }, [location.pathname, menuItems]);
 
   const handleMenuClick = (item: typeof menuItems[0]) => {
     setActiveSection(item.id);

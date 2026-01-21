@@ -49,6 +49,7 @@ const JobOversight: React.FC = () => {
 
   useEffect(() => {
     loadJobs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pagination.page, pagination.size]);
 
   const loadJobs = async () => {

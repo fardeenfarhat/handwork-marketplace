@@ -44,6 +44,7 @@ const ContentModeration: React.FC = () => {
     } else {
       loadKYCDocuments();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, pagination.page]);
 
   const loadReviews = async () => {

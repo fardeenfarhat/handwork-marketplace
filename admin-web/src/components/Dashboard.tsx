@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Overview from './sections/Overview';
@@ -15,7 +15,7 @@ const Dashboard: React.FC = () => {
   const location = useLocation();
   const [activeSection, setActiveSection] = useState('overview');
 
-  const menuItems = [
+  const menuItems = useMemo(() => [
     { id: 'overview', label: 'Overview', icon: 'fas fa-chart-line', path: '/' },
     { id: 'users', label: 'User Management', icon: 'fas fa-users', path: '/users' },
     { id: 'jobs', label: 'Job Oversight', icon: 'fas fa-briefcase', path: '/jobs' },
@@ -23,7 +23,7 @@ const Dashboard: React.FC = () => {
     { id: 'disputes', label: 'Dispute Resolution', icon: 'fas fa-gavel', path: '/disputes' },
     { id: 'moderation', label: 'Content Moderation', icon: 'fas fa-shield-alt', path: '/moderation' },
     { id: 'analytics', label: 'Analytics', icon: 'fas fa-chart-bar', path: '/analytics' },
-  ];
+  ], []);
 
   useEffect(() => {
     const currentPath = location.pathname;

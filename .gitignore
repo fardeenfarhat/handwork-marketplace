@@ -205,7 +205,7 @@ dist
 
 # Gatsby files
 .cache/
-public
+# public  # Commented out - needed for admin-web React app
 
 # Storybook build outputs
 .out
@@ -294,6 +294,8 @@ logs/
 *.gz
 *.iso
 *.jar
+# Exception: Keep Gradle wrapper jar (required for builds)
+!mobile/android/gradle/wrapper/gradle-wrapper.jar
 *.rar
 *.tar
 *.zip

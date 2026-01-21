@@ -6,7 +6,7 @@ services:
     plan: free
     rootDir: backend
     buildCommand: pip install -r requirements.txt
-    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    startCommand: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT --timeout-keep-alive 120
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
@@ -20,10 +20,22 @@ services:
         value: HS256
       - key: ACCESS_TOKEN_EXPIRE_MINUTES
         value: 30
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_PUBLISHABLE_KEY
         sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        value: ""
+      - key: MAIL_ENABLED
+        value: false
+      - key: MAIL_DEVELOPMENT_MODE
+        value: false
+      - key: PAYPAL_MODE
+        value: sandbox
       - key: FRONTEND_URL
         value: https://handwork-marketplace.onrender.com
     healthCheckPath: /health

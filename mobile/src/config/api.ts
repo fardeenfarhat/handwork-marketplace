@@ -21,6 +21,11 @@ const resolveDevBase = (): string => {
   const lanIP = process.env.EXPO_PUBLIC_LAN_IP;
   if (lanIP) return `http://${lanIP}:8000`;
 
+  // For production builds (when __DEV__ is false), use production URL
+  if (!__DEV__) {
+    return 'https://handwork-marketplace.onrender.com';
+  }
+
   // Force using the IP that your mobile device can actually reach
   // This matches your current network IP
   return 'http://192.168.100.11:8000';

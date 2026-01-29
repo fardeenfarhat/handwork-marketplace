@@ -72,8 +72,11 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     """Generate password hash"""
     # Truncate to 72 bytes for bcrypt compatibility
-    if len(password.encode('utf-8')) > 72:
-        password = password.encode('utf-8')[:72].decode('utf-8', errors='ignore')
+    # Encode to bytes first, then truncate, then decode safely
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) > 72:
+        # Truncate at 72 bytes and decode, replacing invalid characters
+        password = password_bytes[:72].decode('utf-8', errors='replace')
     return pwd_context.hash(password)
 
 def generate_verification_token() -> str:

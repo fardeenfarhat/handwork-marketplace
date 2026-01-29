@@ -1,36 +1,36 @@
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-firebase-admin==6.4.0
-sqlalchemy==2.0.23
-psycopg2-binary==2.9.9
-psutil==5.9.6
-Pillow==10.4.0
-alembic==1.12.1
-pydantic==2.5.0
-pydantic-settings==2.1.0
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-bcrypt==4.0.1
-python-multipart==0.0.6
-stripe==11.1.0
-paypalrestsdk==1.13.3
-python-decouple==3.8
-pytest==7.4.3
-pytest-asyncio==0.21.1
-httpx==0.25.2
-black==23.11.0
-flake8==6.1.0
-isort==5.12.0
+fastapi
+uvicorn[standard]
+firebase-admin
+sqlalchemy
+psycopg2-binary
+psutil
+Pillow
+alembic
+pydantic
+pydantic-settings
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt
+python-multipart
+stripe
+paypalrestsdk
+python-decouple
+pytest
+pytest-asyncio
+httpx
+black
+flake8
+isort
 # Authentication and OAuth
-authlib==1.2.1
+authlib
 # Email services
-fastapi-mail==1.4.1
+fastapi-mail
 # SMS services (Twilio)
-twilio==8.10.3
+twilio
 # Additional security
-python-multipart==0.0.6
+python-multipart
 # Email validation
-email-validator==2.1.1
-# Machine Learning
-scikit-learn==1.3.2
-numpy==1.24.4
+email-validator
+# Machine Learning - Updated for Python 3.13 compatibility
+scikit-learn
+numpy

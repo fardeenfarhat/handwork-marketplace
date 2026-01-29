@@ -594,6 +594,9 @@ async def send_email_verification(
     verification_token = generate_verification_token()
     token_expires = create_verification_token_expires()
     
+    print(f"📧 Resending verification email to: {user.email} (User ID: {user.id})")
+    print(f"🔢 Verification code: {verification_token}")
+    
     # Invalidate existing tokens
     db.query(VerificationToken).filter(
         VerificationToken.user_id == user.id,

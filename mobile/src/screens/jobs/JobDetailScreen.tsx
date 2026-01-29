@@ -154,6 +154,20 @@ function JobDetailScreen() {
     navigation.navigate('JobApplication', { jobId: job.id });
   };
 
+  const handleShareJob = async () => {
+    if (!job) return;
+    
+    try {
+      const { Share } = await import('react-native');
+      await Share.share({
+        message: `Check out this job: ${job.title}\n\nBudget: ${formatBudget(job.budgetMin, job.budgetMax)}\nLocation: ${job.location || 'Not specified'}\n\nDownload Handwork Marketplace to apply!`,
+        title: job.title,
+      });
+    } catch (error) {
+      console.error('Error sharing job:', error);
+    }
+  };
+
   const handleContactClient = () => {
     if (!job?.clientName) return;
     // Navigate to messaging screen
@@ -388,7 +402,7 @@ function JobDetailScreen() {
               <Text style={styles.headerTitle}>Job Details</Text>
             </View>
 
-            <TouchableOpacity style={styles.shareButton}>
+            <TouchableOpacity style={styles.shareButton} onPress={handleShareJob}>
               <Ionicons name="share-social-outline" size={24} color="#fff" />
             </TouchableOpacity>
           </Animated.View>
@@ -548,21 +562,6 @@ function JobDetailScreen() {
             <ModernCard variant="elevated" style={styles.clientCard}>
               <View style={styles.clientCardHeader}>
                 <Text style={styles.sectionTitle}>Posted by</Text>
-                {!isJobOwner && job?.clientId && (
-                  <TouchableOpacity 
-                    style={styles.viewClientProfileButton} 
-                    onPress={handleViewClientProfile}
-                  >
-                    <LinearGradient
-                      colors={Gradients.primaryBlue}
-                      style={styles.viewProfileGradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                    >
-                      <Text style={styles.viewProfileButtonText}>View Profile</Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                )}
               </View>
               <View style={styles.clientInfo}>
                 <View style={styles.clientAvatar}>
@@ -578,11 +577,6 @@ function JobDetailScreen() {
                     </View>
                   )}
                 </View>
-                {isWorker && (
-                  <TouchableOpacity style={styles.contactButton} onPress={handleContactClient}>
-                    <Ionicons name="chatbubble-ellipses" size={18} color="#fff" />
-                  </TouchableOpacity>
-                )}
               </View>
             </ModernCard>
           )}

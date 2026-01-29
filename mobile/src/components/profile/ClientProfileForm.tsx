@@ -6,10 +6,13 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { ClientProfile } from '@/types';
 import { ModernButton } from '@/components/ui/ModernButton';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { LocationAutocomplete } from '@/components/common/LocationAutocomplete';
 import { Colors, Typography, Spacing, BorderRadius, Shadows } from '@/styles/DesignSystem';
 
 interface ClientProfileFormProps {
@@ -24,6 +27,10 @@ export default function ClientProfileForm({
   isLoading = false,
 }: ClientProfileFormProps) {
   const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
     companyName: profile.companyName || '',
     description: profile.description || '',
     location: profile.location || '',
@@ -33,6 +40,10 @@ export default function ClientProfileForm({
   useEffect(() => {
     if (profile) {
       setFormData({
+        firstName: (profile as any).firstName || '',
+        lastName: (profile as any).lastName || '',
+        email: (profile as any).email || '',
+        phone: (profile as any).phone || '',
         companyName: profile.companyName || '',
         description: profile.description || '',
         location: profile.location || '',
@@ -67,7 +78,56 @@ export default function ClientProfileForm({
   }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+    >
+      <ScrollView 
+        style={styles.container} 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Personal Information Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Personal Information</Text>
+          
+          <Text style={styles.inputLabel}>First Name</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="First Name"
+            value={formData.firstName}
+          onChangeText={(text) => setFormData(prev => ({ ...prev, firstName: text }))}
+        />
+        
+        <Text style={[styles.inputLabel, { marginTop: Spacing[3] }]}>Last Name</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Last Name"
+          value={formData.lastName}
+          onChangeText={(text) => setFormData(prev => ({ ...prev, lastName: text }))}
+        />
+        
+        <Text style={[styles.inputLabel, { marginTop: Spacing[3] }]}>Email</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="email@example.com"
+          value={formData.email}
+          onChangeText={(text) => setFormData(prev => ({ ...prev, email: text }))}
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+        
+        <Text style={[styles.inputLabel, { marginTop: Spacing[3] }]}>Phone Number</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="+1 (555) 123-4567"
+          value={formData.phone}
+          onChangeText={(text) => setFormData(prev => ({ ...prev, phone: text }))}
+          keyboardType="phone-pad"
+        />
+      </View>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Company Name (Optional)</Text>
         <TextInput
@@ -96,14 +156,16 @@ export default function ClientProfileForm({
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Location</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="City, State"
+        <LocationAutocomplete
           value={formData.location}
           onChangeText={(text) => setFormData(prev => ({ ...prev, location: text }))}
+          onSelectLocation={(location) => {
+            setFormData(prev => ({ ...prev, location: location.description }));
+          }}
+          placeholder="Enter city, state or postal code"
         />
         <Text style={styles.helpText}>
-          This helps workers find jobs in their area
+          Start typing to see location suggestions. This helps workers find jobs in their area.
         </Text>
       </View>
 
@@ -113,7 +175,8 @@ export default function ClientProfileForm({
         style={styles.saveButton}
         loading={isLoading}
       />
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -139,6 +202,12 @@ const styles = StyleSheet.create({
     fontWeight: '700' as const,
     marginBottom: Spacing[3],
     color: Colors.neutral[900],
+  },
+  inputLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: '600' as const,
+    color: Colors.neutral[700],
+    marginBottom: Spacing[2],
   },
   input: {
     borderWidth: 1,

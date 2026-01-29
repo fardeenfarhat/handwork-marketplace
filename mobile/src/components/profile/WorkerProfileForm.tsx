@@ -7,6 +7,8 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,6 +16,7 @@ import { WorkerProfile } from '@/types';
 import { ModernButton } from '@/components/ui/ModernButton';
 import { ModernCard } from '@/components/ui/ModernCard';
 import LoadingSpinner from '@/components/common/LoadingSpinner';
+import { LocationAutocomplete } from '@/components/common/LocationAutocomplete';
 import { Colors, Typography, Spacing, BorderRadius, Shadows, Gradients } from '@/styles/DesignSystem';
 
 interface WorkerProfileFormProps {
@@ -54,6 +57,10 @@ export default function WorkerProfileForm({
   isLoading = false,
 }: WorkerProfileFormProps) {
   const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
     bio: profile.bio || '',
     hourlyRate: profile.hourlyRate?.toString() || '',
     location: profile.location || '',
@@ -68,6 +75,10 @@ export default function WorkerProfileForm({
   useEffect(() => {
     if (profile) {
       setFormData({
+        firstName: (profile as any).firstName || '',
+        lastName: (profile as any).lastName || '',
+        email: (profile as any).email || '',
+        phone: (profile as any).phone || '',
         bio: profile.bio || '',
         hourlyRate: profile.hourlyRate?.toString() || '',
         location: profile.location || '',
@@ -140,7 +151,56 @@ export default function WorkerProfileForm({
   }
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 0}
+    >
+      <ScrollView 
+        style={styles.container} 
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Personal Information Section */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Personal Information</Text>
+          
+          <Text style={styles.inputLabel}>First Name</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="First Name"
+            value={formData.firstName}
+            onChangeText={(text) => setFormData(prev => ({ ...prev, firstName: text }))}
+          />
+        
+        <Text style={[styles.inputLabel, { marginTop: Spacing[3] }]}>Last Name</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="Last Name"
+          value={formData.lastName}
+          onChangeText={(text) => setFormData(prev => ({ ...prev, lastName: text }))}
+        />
+        
+        <Text style={[styles.inputLabel, { marginTop: Spacing[3] }]}>Email</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="email@example.com"
+          value={formData.email}
+          onChangeText={(text) => setFormData(prev => ({ ...prev, email: text }))}
+          keyboardType="email-address"
+          autoCapitalize="none"
+        />
+        
+        <Text style={[styles.inputLabel, { marginTop: Spacing[3] }]}>Phone Number</Text>
+        <TextInput
+          style={styles.input}
+          placeholder="+1 (555) 123-4567"
+          value={formData.phone}
+          onChangeText={(text) => setFormData(prev => ({ ...prev, phone: text }))}
+          keyboardType="phone-pad"
+        />
+      </View>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>About You</Text>
         <TextInput
@@ -171,12 +231,17 @@ export default function WorkerProfileForm({
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Location</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="City, State"
+        <LocationAutocomplete
           value={formData.location}
           onChangeText={(text) => setFormData(prev => ({ ...prev, location: text }))}
+          onSelectLocation={(location) => {
+            setFormData(prev => ({ ...prev, location: location.description }));
+          }}
+          placeholder="Enter city, state or postal code"
         />
+        <Text style={styles.helpText}>
+          Start typing to see location suggestions
+        </Text>
       </View>
 
       <View style={styles.section}>
@@ -318,7 +383,8 @@ export default function WorkerProfileForm({
           </View>
         </View>
       )}
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -358,6 +424,12 @@ const styles = StyleSheet.create({
     marginBottom: Spacing[3],
     color: Colors.neutral[900],
   },
+  inputLabel: {
+    fontSize: Typography.fontSize.sm,
+    fontWeight: '600' as const,
+    color: Colors.neutral[700],
+    marginBottom: Spacing[2],
+  },
   input: {
     borderWidth: 1,
     borderColor: Colors.neutral[300],
@@ -366,6 +438,11 @@ const styles = StyleSheet.create({
     fontSize: Typography.fontSize.base,
     backgroundColor: Colors.neutral[50],
     color: Colors.neutral[900],
+  },
+  helpText: {
+    fontSize: Typography.fontSize.sm,
+    color: Colors.neutral[500],
+    marginTop: Spacing[2],
   },
   bioInput: {
     borderWidth: 1,

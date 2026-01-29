@@ -49,6 +49,9 @@
 
 - [x] 6. Implement messaging system backend
 
+
+
+
   - Create real-time messaging endpoints using WebSocket connections
   - Build message storage and retrieval system with conversation threading
   - Implement file and image attachment upload for messages

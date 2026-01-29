@@ -33,7 +33,20 @@ export default function ClientProfileEditScreen() {
     try {
       setIsLoading(true);
       const clientProfile = await apiService.getClientProfile();
-      setProfile(clientProfile);
+      // Add user information to profile
+      setProfile({
+        ...clientProfile,
+        firstName: user.firstName || (user as any).first_name || '',
+        lastName: user.lastName || (user as any).last_name || '',
+        email: user.email || '',
+        phone: user.phone || '',
+      } as any);
+      console.log('Client profile loaded with user info:', {
+        firstName: user.firstName || (user as any).first_name,
+        lastName: user.lastName || (user as any).last_name,
+        email: user.email,
+        phone: user.phone,
+      });
     } catch (error) {
       console.error('Error loading client profile:', error);
       Alert.alert('Error', 'Failed to load profile');
@@ -47,9 +60,30 @@ export default function ClientProfileEditScreen() {
       setIsLoading(true);
       
       console.log('Saving client profile:', profileData);
-      const updatedProfile = await apiService.updateClientProfile(profileData);
       
-      setProfile(updatedProfile);
+      // Separate user info from profile data
+      const { firstName, lastName, email, phone, ...clientProfileData } = profileData as any;
+      
+      // Update user information if changed
+      if (firstName || lastName || email || phone) {
+        await apiService.updateUserInfo({
+          first_name: firstName,
+          last_name: lastName,
+          email,
+          phone,
+        });
+      }
+      
+      // Update client profile
+      const updatedProfile = await apiService.updateClientProfile(clientProfileData);
+      
+      setProfile({
+        ...updatedProfile,
+        firstName,
+        lastName,
+        email,
+        phone,
+      } as any);
       
       // Refresh user data in Redux store
       dispatch(refreshUserProfile());

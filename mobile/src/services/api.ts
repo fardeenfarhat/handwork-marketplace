@@ -424,6 +424,18 @@ class ApiService {
     });
   }
 
+  async updateUserInfo(userData: {
+    first_name?: string;
+    last_name?: string;
+    email?: string;
+    phone?: string;
+  }) {
+    return this.request('/users/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(userData),
+    });
+  }
+
   async uploadKYCDocuments(formData: FormData) {
     // Extract documents from FormData and upload them individually
     const documents: Array<{ file: any; type: string }> = [];

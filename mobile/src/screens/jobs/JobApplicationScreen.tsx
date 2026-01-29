@@ -127,8 +127,8 @@ function JobApplicationScreen() {
 
     if (!formData.message.trim()) {
       newErrors.message = 'Please provide a message explaining why you\'re the right fit';
-    } else if (formData.message.length < 50) {
-      newErrors.message = 'Message should be at least 50 characters long';
+    } else if (formData.message.length < 20) {
+      newErrors.message = 'Message should be at least 20 characters long';
     }
 
     if (!formData.proposedRate || formData.proposedRate <= 0) {
@@ -151,30 +151,57 @@ function JobApplicationScreen() {
 
   const handleSubmit = async () => {
     if (!validateForm()) {
+      // Show validation errors
+      const errorMessages = Object.values(errors).join('\n');
+      if (errorMessages) {
+        Alert.alert('Validation Error', errorMessages);
+      }
       return;
     }
 
     try {
       setSubmitting(true);
 
-      await apiService.applyToJob(jobId, {
+      const response = await apiService.applyToJob(jobId, {
         message: formData.message,
         proposedRate: formData.proposedRate,
         proposedStartDate: formData.proposedStartDate,
       });
 
+      console.log('Application submitted successfully:', response);
+
+      // Show success alert
       Alert.alert(
-        'Application Submitted',
-        'Your application has been sent to the client. You\'ll be notified if they\'re interested.',
+        '✅ Application Submitted!',
+        `Your application has been sent successfully.\n\nThe client will review your proposal and get back to you soon.`,
         [
           {
             text: 'OK',
-            onPress: () => navigation.goBack(),
+            onPress: () => {
+              console.log('Navigating back after successful submission');
+              navigation.goBack();
+            },
           },
-        ]
+        ],
+        { cancelable: false }
       );
-    } catch (error) {
-      ErrorHandler.handle(error);
+    } catch (error: any) {
+      console.error('Application submission error:', error);
+      
+      // Handle specific error cases
+      let errorMessage = 'Failed to submit application. Please try again.';
+      
+      if (error?.message?.includes('KYC')) {
+        errorMessage = 'You must complete KYC verification before applying to jobs. Please complete your profile verification first.';
+      } else if (error?.message?.includes('already applied')) {
+        errorMessage = 'You have already applied to this job.';
+      } else if (error?.detail) {
+        errorMessage = error.detail;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert('Submission Failed', errorMessage);
     } finally {
       setSubmitting(false);
     }
@@ -343,8 +370,8 @@ function JobApplicationScreen() {
                 />
               </View>
               <View style={styles.inputFooter}>
-                <Text style={[styles.characterCount, formData.message.length < 50 ? styles.warningText : null]}>
-                  {formData.message.length}/1000 • Min 50 characters
+                <Text style={[styles.characterCount, formData.message.length < 20 ? styles.warningText : null]}>
+                  {formData.message.length}/1000 • Min 20 characters
                 </Text>
               </View>
               {errors.message && (

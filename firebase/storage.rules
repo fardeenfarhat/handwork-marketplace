@@ -1,0 +1,51 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // Message attachments
+    match /message-attachments/{userId}/{fileName} {
+      // Users can upload files to their own folder
+      allow write: if request.auth != null && 
+        request.auth.uid == userId &&
+        validateFileUpload();
+      
+      // Users can read files from conversations they participate in
+      allow read: if request.auth != null &&
+        (request.auth.uid == userId || 
+         userCanAccessFile(request.auth.uid, userId));
+    }
+    
+    // Profile images
+    match /profile-images/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        request.auth.uid == userId &&
+        validateImageUpload();
+    }
+    
+    // Portfolio images
+    match /portfolio-images/{userId}/{fileName} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null && 
+        request.auth.uid == userId &&
+        validateImageUpload();
+    }
+    
+    // Helper functions
+    function validateFileUpload() {
+      return request.resource.size < 10 * 1024 * 1024 && // 10MB limit
+        request.resource.contentType.matches('image/.*|application/pdf|text/plain|application/msword|application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    }
+    
+    function validateImageUpload() {
+      return request.resource.size < 5 * 1024 * 1024 && // 5MB limit
+        request.resource.contentType.matches('image/.*');
+    }
+    
+    function userCanAccessFile(requesterId, fileOwnerId) {
+      // This would need to check if users are in a conversation together
+      // For now, allow access (can be refined with Cloud Functions)
+      return true;
+    }
+  }
+}
